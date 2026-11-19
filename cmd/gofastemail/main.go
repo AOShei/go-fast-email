@@ -98,7 +98,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags.Var(&exclude, "exclude-hidden", "in Markdown and text, leave out hidden text: all of it, or with =reasons only what is hidden for those reasons (JSON always has everything, flagged)")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: gofastemail [flags] file-or-directory...")
-		fmt.Fprintln(stderr, "Extracts .eml, .mbox and .msg files. A directory stands for the email files in it and below it.")
+		fmt.Fprintln(stderr, "Extracts .eml, .mbox and .msg files, and winmail.dat files named on the command line. A directory stands for the email files in it and below it.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
