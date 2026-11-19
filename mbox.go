@@ -1,0 +1,235 @@
+package gofastemail
+
+import (
+	"bufio"
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"strconv"
+	"strings"
+
+	"github.com/AOShei/go-fast-core"
+	"github.com/AOShei/go-fast-email/internal/clean"
+	"github.com/AOShei/go-fast-email/internal/rfc822"
+)
+
+// DefaultMaxParts bounds the messages read from a mailbox when
+// Limits.MaxParts is zero.
+const DefaultMaxParts = 1_000_000
+
+// maxEnvelope bounds the "From " line kept for a message.
+const maxEnvelope = 1024
+
+// span is one message of a mailbox: the bytes after its "From " line.
+type span struct {
+	start, end int64
+	envelope   string
+	// counted: the end was found from a Content-Length header (mboxcl2),
+	// so lines in the body that begin ">From " are as the sender wrote
+	// them and are not unquoted.
+	counted bool
+}
+
+// mbox reads a mailbox: messages each introduced by a "From " line.
+//
+// A "From " line separates messages where it begins the file or follows a
+// blank line. Where a message has a Content-Length header and the byte it
+// points to is the end of the file or the next "From " line, the message
+// is taken to end there (mboxcl2), and "From " lines inside it are text.
+// Otherwise lines that begin ">From ", ">>From ", ... lose one ">"
+// (mboxrd). A mailbox in the older mboxo form, which quotes only "From ",
+// reads the same way except for lines that began ">From " in the
+// original, which lose their ">".
+func (r *reader) mbox(src io.ReaderAt, size int64) (*gofastcore.Document, error) {
+	r.doc = gofastcore.New("mbox")
+	r.doc.Source = gofastcore.Source{Format: "mbox", Name: r.opts.Name, MIME: "application/mbox", Size: size}
+	maxParts := int(min(gofastcore.ResolveLimit(int64(r.opts.Limits.MaxParts), DefaultMaxParts), 1<<40))
+	number := 0
+	var stop error
+	emit := func(s span) bool {
+		number++
+		if err := r.ctx.Err(); err != nil {
+			stop = err
+			return false
+		}
+		if !r.opts.Parts.Contains(number) {
+			return r.opts.Parts.Last == 0 || number < r.opts.Parts.Last
+		}
+		if len(r.doc.Parts) >= maxParts {
+			r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the mailbox has more than %d messages; the rest are not read", maxParts))
+			return false
+		}
+		if r.text.Spent() {
+			r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("text limit reached; messages from %d on are not read", number))
+			return false
+		}
+		r.doc.Parts = append(r.doc.Parts, r.mboxMessage(src, s, number))
+		return true
+	}
+	if err := scanMbox(src, size, r.e.maxHeader(), emit); err != nil {
+		return nil, fmt.Errorf("gofastemail: reading: %v: %w", err, gofastcore.ErrMalformed)
+	}
+	if stop != nil {
+		return nil, stop
+	}
+	if len(r.doc.Parts) == 0 {
+		return nil, fmt.Errorf("gofastemail: the mailbox has %d messages: %w", number, gofastcore.ErrNoPartsSelected)
+	}
+	return r.finish(), nil
+}
+
+// mboxMessage reads one message of a mailbox into a part.
+func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Part {
+	m := &message{}
+	n := s.end - s.start
+	if limit := r.e.maxMessage(); n > limit {
+		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("message of %d bytes read to %d", n, limit))
+		n = limit
+	}
+	raw := make([]byte, n)
+	got, _ := src.ReadAt(raw, s.start)
+	raw = raw[:got]
+	if !s.counted {
+		raw = unquote(raw)
+	}
+	// A part takes from the text budget what a block does, so that a
+	// mailbox of a great many empty messages is bounded too.
+	if !r.take(m, gofastcore.BlockCost) {
+		m.part.Kind, m.part.Number = gofastcore.PartMessage, number
+		m.part.MarkHidden()
+		return m.part
+	}
+	r.message(m, raw, number, s.envelope)
+	return m.part
+}
+
+// unquote removes one ">" from every line that begins with one or more
+// ">" and then "From " (mboxrd).
+func unquote(b []byte) []byte {
+	if !bytes.Contains(b, []byte(">From ")) {
+		return b
+	}
+	out := make([]byte, 0, len(b))
+	for len(b) > 0 {
+		end := bytes.IndexByte(b, '\n') + 1
+		if end == 0 {
+			end = len(b)
+		}
+		line := b[:end]
+		if i := bytes.IndexFunc(line, func(r rune) bool { return r != '>' }); i > 0 && bytes.HasPrefix(line[i:], []byte("From ")) {
+			line = line[1:]
+		}
+		out = append(out, line...)
+		b = b[end:]
+	}
+	return out
+}
+
+// scanMbox finds the messages of a mailbox and calls emit with each, in
+// order, until it returns false. It reads the file a line at a time, and
+// holds no more than a buffer and one header section.
+func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) error {
+	const bufSize = 64 << 10
+	var off int64
+	newReader := func(at int64) *bufio.Reader {
+		return bufio.NewReaderSize(io.NewSectionReader(src, at, size-at), bufSize)
+	}
+	br := newReader(0)
+	prevBlank, atLineStart := true, true
+	var cur *span
+	for off < size {
+		lineStart := off
+		chunk, err := br.ReadSlice('\n')
+		off += int64(len(chunk))
+		whole := !errors.Is(err, bufio.ErrBufferFull)
+		if err != nil && !errors.Is(err, bufio.ErrBufferFull) && !errors.Is(err, io.EOF) {
+			return err
+		}
+		if atLineStart && prevBlank && bytes.HasPrefix(chunk, []byte("From ")) {
+			env := clean.Cut(clean.Line(strings.ToValidUTF8(string(bytes.TrimRight(chunk[5:], "\r\n")), "�")), maxEnvelope)
+			for !whole { // the rest of a very long line
+				chunk, err = br.ReadSlice('\n')
+				off += int64(len(chunk))
+				whole = !errors.Is(err, bufio.ErrBufferFull)
+			}
+			if cur != nil {
+				cur.end = lineStart
+				if !emit(*cur) {
+					return nil
+				}
+			}
+			cur = &span{start: off, envelope: env}
+			if end, ok := countedEnd(src, size, off, maxHeader); ok {
+				cur.end, cur.counted = end, true
+				if !emit(*cur) {
+					return nil
+				}
+				cur = nil
+				off = end
+				br = newReader(off)
+				prevBlank, atLineStart = true, true
+				continue
+			}
+		}
+		prevBlank = atLineStart && whole && len(bytes.TrimRight(chunk, "\r\n")) == 0
+		atLineStart = whole
+		if errors.Is(err, io.EOF) {
+			break
+		}
+	}
+	if cur != nil {
+		cur.end = size
+		emit(*cur)
+	}
+	return nil
+}
+
+// countedEnd returns the end of the message whose header begins at start,
+// as its Content-Length header gives it, if it has one and the byte it
+// points to is the end of the file or a "From " line after at most one
+// blank line.
+func countedEnd(src io.ReaderAt, size, start int64, maxHeader int) (int64, bool) {
+	head := make([]byte, min(int64(maxHeader), size-start, 64<<10))
+	n, _ := src.ReadAt(head, start)
+	head = head[:n]
+	h, bodyAt, p := rfc822.ParseHeader(head, len(head))
+	if p.Truncated {
+		return 0, false
+	}
+	v, ok := h.Get("Content-Length")
+	if !ok {
+		return 0, false
+	}
+	length, err := strconv.ParseInt(strings.TrimSpace(string(v)), 10, 64)
+	if err != nil || length < 0 || length > size {
+		return 0, false
+	}
+	end := start + int64(bodyAt) + length
+	if end == size {
+		return end, true
+	}
+	if end > size {
+		return 0, false
+	}
+	var next [16]byte
+	k, _ := src.ReadAt(next[:], end)
+	rest := next[:k]
+	for range 2 { // up to one blank line, then the "From " line
+		if bytes.HasPrefix(rest, []byte("From ")) {
+			return end, true
+		}
+		switch {
+		case bytes.HasPrefix(rest, []byte("\r\n")):
+			end, rest = end+2, rest[2:]
+		case bytes.HasPrefix(rest, []byte("\n")):
+			end, rest = end+1, rest[1:]
+		default:
+			return 0, false
+		}
+		if end == size {
+			return end, true
+		}
+	}
+	return 0, false
+}

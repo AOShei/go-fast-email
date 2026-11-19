@@ -28,7 +28,7 @@ func FuzzExtract(f *testing.F) {
 
 // seeds are the messages of the tests, for the fuzzers.
 func seeds() []string {
-	return []string{"", simple, alternative, "From: a\n\nb", "From x\nFrom: a\n\nb\n\nFrom y\n\nc",
+	return []string{"", simple, alternative, mailbox, "From: a\n\nb", "From x\nFrom: a\n\nb\n\nFrom y\n\nc",
 		"From: a\nContent-Type: multipart/mixed; boundary=b\n\n--b\nContent-Type: message/rfc822\n\nFrom: c\n\nd\n--b--\n",
 		"From: a\nContent-Type: text/plain; format=flowed; delsp=yes; charset*=utf-8''x\nContent-Transfer-Encoding: quoted-printable\n\n> a =\n b=3D\n-- \nsig"}
 }

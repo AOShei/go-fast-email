@@ -1,6 +1,7 @@
 package textbody
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/AOShei/go-fast-core"
@@ -54,6 +55,16 @@ func TestFlowed(t *testing.T) {
 	})
 	got, _ = Blocks("abc \ndef", Options{Flowed: true, DelSp: true}, all)
 	check(t, got, []want{{gofastcore.KindParagraph, 0, "abcdef", ""}})
+}
+
+// TestWorstCase joins half a million flowed lines; joining them one by one
+// into a string would take minutes.
+func TestWorstCase(t *testing.T) {
+	text := strings.Repeat("ab \n", 500_000) + "end"
+	got, _ := Blocks(text, Options{Flowed: true}, all)
+	if len(got) != 1 || len(got[0].Text) != 3*500_000+3 {
+		t.Fatalf("%d blocks", len(got))
+	}
 }
 
 func TestBudget(t *testing.T) {

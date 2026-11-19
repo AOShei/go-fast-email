@@ -100,6 +100,15 @@ func split(text string, o Options) []line {
 	raw := strings.Split(text, "\n")
 	out := make([]line, 0, len(raw))
 	joining := false // the previous line ended in a soft break
+	// A line made of flowed lines is gathered here, so that joining many
+	// costs no more than their length.
+	var joined strings.Builder
+	finish := func() {
+		if joined.Len() > 0 && len(out) > 0 {
+			out[len(out)-1].text = joined.String()
+		}
+		joined.Reset()
+	}
 	for _, s := range raw {
 		depth, rest := quoteDepth(s, o.Flowed)
 		sig := rest == "-- " || rest == "--"
@@ -113,12 +122,17 @@ func split(text string, o Options) []line {
 			rest = rest[:len(rest)-1]
 		}
 		if joining && len(out) > 0 && out[len(out)-1].depth == depth && !sig {
-			out[len(out)-1].text += rest
+			if joined.Len() == 0 {
+				joined.WriteString(out[len(out)-1].text)
+			}
+			joined.WriteString(rest)
 		} else {
+			finish()
 			out = append(out, line{depth: depth, text: rest, sig: sig && !joining})
 		}
 		joining = soft
 	}
+	finish()
 	return out
 }
 
