@@ -195,6 +195,22 @@ func TestInlineImages(t *testing.T) {
 	}
 }
 
+func TestExternalBody(t *testing.T) {
+	msg := "From: a@example.com\nContent-Type: multipart/mixed; boundary=b\n\n--b\n\nText.\n" +
+		"--b\nContent-Type: message/external-body; access-type=URL;\n URL=\"http://example.com/big.iso\"\n\nContent-Type: application/octet-stream\n\n" +
+		"--b--\n"
+	doc := extract(t, msg, nil)
+	p := &doc.Parts[0]
+	if !p.Has(gofastcore.WarnInputExternalReference) || len(doc.Children) != 1 {
+		t.Fatalf("warnings %+v, %d children", p.Warnings, len(doc.Children))
+	}
+	for _, w := range p.Warnings {
+		if w.Code == gofastcore.WarnInputExternalReference && !strings.Contains(w.Message, "http://example.com/big.iso") {
+			t.Errorf("message %q", w.Message)
+		}
+	}
+}
+
 func TestCharsets(t *testing.T) {
 	msg := "From: a@example.com\nSubject: =?koi8-r?b?wcI=?=\nContent-Type: text/plain; charset=shift_jis\n\nab\x82\xa0c"
 	doc := extract(t, msg, nil)

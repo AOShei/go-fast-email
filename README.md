@@ -140,7 +140,7 @@ not by a flag.
 | `email.unknown_transfer_encoding` (warning) | A part declares a transfer encoding other than base64, quoted-printable, 7bit, 8bit or binary; its bytes are taken as they are |
 | `text.unmapped_glyphs` | A character set not decoded, or bytes not valid in the one declared |
 | `input.repaired` | A header section ended by a line that is not a header; a multipart body without closing boundary or without any boundary; base64 with characters outside its alphabet; an unreadable compressed RTF body |
-| `input.external_reference` | An Outlook attachment by reference names a file outside the message |
+| `input.external_reference` | An Outlook attachment by reference names a file outside the message; a `message/external-body` part names content elsewhere (its URL or file is in the message; nothing is fetched) |
 | `text.hidden` | See above |
 | `limit.exceeded` (error) | Any limit below |
 | `part.no_text` | A message with no text at all |

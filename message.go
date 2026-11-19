@@ -367,6 +367,19 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 		r.multipart(m, mediatype, boundary, body, depth, alt)
 		return
 	}
+	if mediatype == "message/external-body" {
+		// The content is somewhere else, named by the parameters. It is
+		// passed on as it is and never fetched.
+		where := params["url"]
+		if where == "" {
+			where = params["name"]
+			if s := params["site"]; s != "" {
+				where = s + ":" + where
+			}
+		}
+		m.warn(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, fmt.Sprintf("a part whose content is outside the message (access type %q): %q",
+			clean.Cut(clean.Line(params["access-type"]), 64), clean.Cut(clean.Line(where), 1024)))
+	}
 	data, _ := r.decode(m, cte, body) // nil when over the limit
 	if strings.HasPrefix(mediatype, "image/") && !attachment && !alt {
 		// A picture a mail program shows in the message: a block at its
