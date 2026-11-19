@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/AOShei/go-fast-core"
 	"github.com/AOShei/go-fast-email"
@@ -22,8 +23,12 @@ func FuzzExtract(f *testing.F) {
 	f.Add(outlookMessage())
 	e := &gofastemail.Extractor{MaxMessageBytes: 1 << 20}
 	f.Fuzz(func(t *testing.T, data []byte) {
+		// An input that takes seconds is a bug: crash the worker, so that
+		// the fuzzer keeps the input.
+		timer := time.AfterFunc(5*time.Second, func() { panic("Extract took more than 5s") })
+		defer timer.Stop()
 		var got []seen
-		opts := &gofastcore.Options{Child: dispatcher(&got), Limits: gofastcore.Limits{MaxDecodedBytes: 4 << 20, MaxTextBytes: 4 << 20}}
+		opts :=&gofastcore.Options{Child: dispatcher(&got), Limits: gofastcore.Limits{MaxDecodedBytes: 4 << 20, MaxTextBytes: 4 << 20}}
 		doc, err := e.Extract(context.Background(), bytes.NewReader(data), int64(len(data)), opts)
 		checkOutcome(t, doc, err)
 	})

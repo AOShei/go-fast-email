@@ -1,6 +1,8 @@
 package rfc822
 
 import (
+	"bytes"
+	"encoding/base64"
 	"strings"
 	"testing"
 
@@ -69,6 +71,23 @@ func TestParams(t *testing.T) {
 func TestTransferDecoding(t *testing.T) {
 	if got := string(Base64([]byte("aGVs\r\nbG8g!d29y\nbGQ=\ntrailing"))); got != "hello world" {
 		t.Errorf("Base64 = %q", got)
+	}
+	// Lengths around the size of the decoder's buffer, wrapped at 76.
+	for _, n := range []int{0, 1, 2, 3, 3071, 3072, 3073, 10000} {
+		raw := make([]byte, n)
+		for i := range raw {
+			raw[i] = byte(i*7 + i/251)
+		}
+		enc := base64.StdEncoding.EncodeToString(raw)
+		var wrapped strings.Builder
+		for len(enc) > 76 {
+			wrapped.WriteString(enc[:76] + "\r\n")
+			enc = enc[76:]
+		}
+		wrapped.WriteString(enc)
+		if got := Base64([]byte(wrapped.String())); !bytes.Equal(got, raw) {
+			t.Errorf("Base64 of %d bytes: got %d bytes, not the same", n, len(got))
+		}
 	}
 	if got := string(QuotedPrintable([]byte("caf=C3=A9 =\r\nau lait  \r\n=XYend=3d"))); got != "caf\xc3\xa9 au lait\n=XYend=" {
 		t.Errorf("QuotedPrintable = %q", got)

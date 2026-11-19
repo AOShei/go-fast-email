@@ -9,23 +9,41 @@ import (
 // breaks, spaces, stray punctuation) are skipped, decoding stops at the
 // first "=", and a last group that is short is decoded as far as it goes.
 // The result is never longer than three quarters of the input.
+//
+// The characters of the alphabet are gathered a few kilobytes at a time
+// and decoded from there, so that decoding holds the input and the output
+// and no copy of the input beside them.
 func Base64(in []byte) []byte {
-	clean := make([]byte, 0, len(in))
+	out := make([]byte, 0, len(in)/4*3+3)
+	var buf [4096]byte // a multiple of 4
+	n := 0
+	flush := func(final bool) {
+		k := n
+		if !final {
+			k -= k % 4
+		} else if k%4 == 1 { // one character is no byte
+			k--
+		}
+		dst := out[len(out) : len(out)+base64.RawStdEncoding.DecodedLen(k)]
+		m, _ := base64.RawStdEncoding.Decode(dst, buf[:k])
+		out = out[:len(out)+m]
+		n = copy(buf[:], buf[k:n])
+	}
+loop:
 	for _, c := range in {
 		switch {
 		case c >= 'A' && c <= 'Z', c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '+', c == '/':
-			clean = append(clean, c)
+			buf[n] = c
+			n++
+			if n == len(buf) {
+				flush(false)
+			}
 		case c == '=':
-			goto done
+			break loop
 		}
 	}
-done:
-	if len(clean)%4 == 1 { // one character is no byte
-		clean = clean[:len(clean)-1]
-	}
-	out := make([]byte, base64.RawStdEncoding.DecodedLen(len(clean)))
-	n, _ := base64.RawStdEncoding.Decode(out, clean)
-	return out[:n]
+	flush(true)
+	return out
 }
 
 // Base64Bad reports whether in holds anything other than the base64
