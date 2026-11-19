@@ -71,10 +71,12 @@ commit 031432a). Standard library and go-fast modules only.
 3. `.msg` and TNEF: named properties (`__nameid_version1.0`; named entries
    of TNEF property lists), for categories and meeting details (location,
    start, end of an IPM.Appointment / meeting request).
-4. Memory: a text/plain body is held about four times over while it is
-   decoded and split (bytes, string, cleaned string, blocks); with the
-   default 256 MiB message limit that can reach 1 GiB for one hostile
-   message. Decode and split in a streaming pass, or lower the default.
+4. Memory: a text/plain body is held a few times over while it is decoded
+   (bytes, string, cleaned string, blocks); with the default 256 MiB
+   message limit that can reach about 1 GiB for one hostile message. Run 2
+   removed the cost per line (textbody had 48 bytes per line break);
+   what is left is a constant factor. Decode in a streaming pass, or lower
+   the default MaxMessageBytes.
 5. A benchmark on a large mailbox.
 6. uuencoded attachments inside text/plain bodies (`begin 644 name`):
    today their lines are paragraph text.

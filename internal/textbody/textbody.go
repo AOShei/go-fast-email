@@ -42,17 +42,20 @@ type line struct {
 // block before it is added (gofastcore.BlockCost and the text); when it
 // returns false no more blocks are made, and Blocks reports that it was
 // cut short.
+//
+// The text is read a line at a time: what is held beside it is the
+// paragraph being gathered and the blocks made, never a record per line,
+// since a body of nothing but line breaks costs a sender one byte a line.
 func Blocks(text string, o Options, take func(int) bool) ([]gofastcore.Block, bool) {
-	lines := split(text, o)
 	var blocks []gofastcore.Block
-	var para []string
+	var para strings.Builder
 	depth, inSig := 0, false
 	flush := func() bool {
-		if len(para) == 0 {
+		if para.Len() == 0 {
 			return true
 		}
-		t := strings.TrimSpace(strings.Join(para, "\n"))
-		para = para[:0]
+		t := strings.TrimSpace(para.String())
+		para.Reset()
 		if t == "" {
 			return true
 		}
@@ -69,47 +72,68 @@ func Blocks(text string, o Options, take func(int) bool) ([]gofastcore.Block, bo
 		blocks = append(blocks, b)
 		return true
 	}
-	for _, l := range lines {
+	cut := false
+	each(text, o, func(l line) bool {
 		if l.sig && l.depth == 0 && !inSig {
 			if !flush() {
-				return blocks, true
+				cut = true
+				return false
 			}
 			inSig = true
-			continue
+			return true
 		}
-		if strings.TrimSpace(l.text) == "" || l.depth != depth {
+		blank := strings.TrimSpace(l.text) == ""
+		if blank || l.depth != depth {
 			if !flush() {
-				return blocks, true
+				cut = true
+				return false
 			}
 			depth = l.depth
-			if strings.TrimSpace(l.text) == "" {
-				continue
+			if blank {
+				return true
 			}
 		}
-		para = append(para, strings.TrimRight(l.text, " \t"))
-	}
-	if !flush() {
+		if para.Len() > 0 {
+			para.WriteByte('\n')
+		}
+		para.WriteString(strings.TrimRight(l.text, " \t"))
+		return true
+	})
+	if cut || !flush() {
 		return blocks, true
 	}
 	return blocks, false
 }
 
-// split returns the logical lines of text: with their quote marks counted
-// and removed, and, for format=flowed, with soft breaks joined.
-func split(text string, o Options) []line {
-	raw := strings.Split(text, "\n")
-	out := make([]line, 0, len(raw))
+// each calls yield with the logical lines of text, in order, until it
+// returns false: with their quote marks counted and removed, and, for
+// format=flowed, with soft breaks joined.
+func each(text string, o Options, yield func(line) bool) {
 	joining := false // the previous line ended in a soft break
-	// A line made of flowed lines is gathered here, so that joining many
-	// costs no more than their length.
+	// The line not yet given to yield, which flowed lines may continue. A
+	// line made of flowed lines is gathered in joined, so that joining
+	// many costs no more than their length.
+	var pending line
+	have := false
 	var joined strings.Builder
-	finish := func() {
-		if joined.Len() > 0 && len(out) > 0 {
-			out[len(out)-1].text = joined.String()
+	emit := func() bool {
+		if !have {
+			return true
 		}
-		joined.Reset()
+		if joined.Len() > 0 {
+			pending.text = joined.String()
+			joined.Reset()
+		}
+		have = false
+		return yield(pending)
 	}
-	for _, s := range raw {
+	for len(text) > 0 {
+		s := text
+		if i := strings.IndexByte(text, '\n'); i >= 0 {
+			s, text = text[:i], text[i+1:]
+		} else {
+			text = ""
+		}
 		depth, rest := quoteDepth(s, o.Flowed)
 		sig := rest == "-- " || rest == "--"
 		if o.Flowed {
@@ -121,19 +145,20 @@ func split(text string, o Options) []line {
 		if soft && o.DelSp {
 			rest = rest[:len(rest)-1]
 		}
-		if joining && len(out) > 0 && out[len(out)-1].depth == depth && !sig {
+		if joining && have && pending.depth == depth && !sig {
 			if joined.Len() == 0 {
-				joined.WriteString(out[len(out)-1].text)
+				joined.WriteString(pending.text)
 			}
 			joined.WriteString(rest)
 		} else {
-			finish()
-			out = append(out, line{depth: depth, text: rest, sig: sig && !joining})
+			if !emit() {
+				return
+			}
+			pending, have = line{depth: depth, text: rest, sig: sig && !joining}, true
 		}
 		joining = soft
 	}
-	finish()
-	return out
+	emit()
 }
 
 // quoteDepth counts the ">" marks that begin s. In flowed text they are

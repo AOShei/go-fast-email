@@ -1,6 +1,7 @@
 package textbody
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -64,6 +65,20 @@ func TestWorstCase(t *testing.T) {
 	got, _ := Blocks(text, Options{Flowed: true}, all)
 	if len(got) != 1 || len(got[0].Text) != 3*500_000+3 {
 		t.Fatalf("%d blocks", len(got))
+	}
+}
+
+// TestLineBreaksCostNothing: a body of line breaks makes no blocks, and
+// reading it must not hold anything for each line.
+func TestLineBreaksCostNothing(t *testing.T) {
+	for _, text := range []string{strings.Repeat("\n", 8<<20), strings.Repeat(">\n", 4<<20), strings.Repeat("x \n", 3<<20)} {
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		got, _ := Blocks(text, Options{Flowed: true}, all)
+		runtime.ReadMemStats(&after)
+		if alloc := after.TotalAlloc - before.TotalAlloc; alloc > uint64(5*len(text))+1<<20 { // a builder's growth, not a cost per line
+			t.Errorf("%d bytes of input, %d allocated, %d blocks", len(text), alloc, len(got))
+		}
 	}
 }
 
