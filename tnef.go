@@ -121,6 +121,28 @@ func (e *Extractor) tnefDocument(ctx context.Context, data []byte, opts *gofastc
 	return r.finish(), nil
 }
 
+// tnefFile reads a file that is a TNEF stream (a winmail.dat saved on its
+// own), to at most the message limit.
+func (r *reader) tnefFile(src io.ReaderAt, size int64) (*gofastcore.Document, error) {
+	if !r.opts.Parts.Contains(1) {
+		return nil, fmt.Errorf("gofastemail: %w", gofastcore.ErrNoPartsSelected)
+	}
+	n := min(size, r.e.maxMessage())
+	data := make([]byte, n)
+	if got, err := src.ReadAt(data, 0); int64(got) < n {
+		return nil, fmt.Errorf("gofastemail: reading: %v: %w", err, gofastcore.ErrMalformed)
+	}
+	doc, err := r.e.tnefDocument(r.ctx, data, r.opts)
+	if err != nil {
+		return nil, err
+	}
+	doc.Source.Size = size
+	if size > n {
+		doc.Parts[0].Warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("TNEF stream of %d bytes read to %d", size, n))
+	}
+	return doc, nil
+}
+
 // tnefProps makes the property reader of an Outlook message from the
 // properties of a TNEF stream.
 func tnefProps(m *message, list []tnef.Prop, limit int64) *props {

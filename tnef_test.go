@@ -1,10 +1,13 @@
 package gofastemail_test
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"testing"
 
 	"github.com/AOShei/go-fast-core"
+	"github.com/AOShei/go-fast-email"
 	"github.com/AOShei/go-fast-email/internal/msgtest"
 )
 
@@ -82,6 +85,25 @@ func TestTNEF(t *testing.T) {
 	doc = extract(t, msg, nil)
 	if len(doc.Children) != 1 || doc.Children[0].Source.Format != "tnef" {
 		t.Fatalf("no dispatcher: %+v", doc.Children)
+	}
+	// A winmail.dat saved as a file of its own.
+	data := winmailDat()
+	top, err := gofastemail.Extract(context.Background(), bytes.NewReader(data), int64(len(data)), &gofastcore.Options{Name: "winmail.dat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkDoc(t, top)
+	if top.Source.Format != "tnef" || top.Source.Name != "winmail.dat" || top.Source.Size != int64(len(data)) || len(top.Children) != 3 {
+		t.Fatalf("file: %+v, %d children", top.Source, len(top.Children))
+	}
+	// Cut by the message limit: read as far as it goes.
+	top, err = (&gofastemail.Extractor{MaxMessageBytes: int64(len(data) - 40)}).Extract(context.Background(), bytes.NewReader(data), int64(len(data)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkDoc(t, top)
+	if !top.Parts[0].Has(gofastcore.WarnLimitExceeded) {
+		t.Errorf("cut file: %+v", top.Parts[0].Warnings)
 	}
 	// At the depth limit it is listed, not read.
 	doc = extract(t, msg, &gofastcore.Options{Depth: gofastcore.DefaultMaxDepth})

@@ -3,11 +3,13 @@ package gofastemail
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/AOShei/go-fast-core"
+	"github.com/AOShei/go-fast-email/internal/tnef"
 )
 
 // Defaults for the limits of gofastcore.Options.Limits, used where a limit
@@ -86,7 +88,7 @@ var _ gofastcore.Extractor = (*Extractor)(nil)
 
 // Formats lists the formats this library extracts, as they appear in
 // gofastcore.Source.Format.
-func (e *Extractor) Formats() []string { return []string{"eml", "mbox", "msg"} }
+func (e *Extractor) Formats() []string { return []string{"eml", "mbox", "msg", "tnef"} }
 
 // Extract reads an email file with default settings. It is
 // (&Extractor{}).Extract.
@@ -127,7 +129,8 @@ var cfbSignature = []byte{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1}
 //
 // The format is decided from the bytes, never from a name: a compound
 // file is an Outlook message, a file that begins with an mbox "From " line
-// is a mailbox, and a file that begins with a header field is a message.
+// is a mailbox, a file that begins with the TNEF signature is a
+// winmail.dat, and a file that begins with a header field is a message.
 // An error wraps one of the gofastcore errors:
 //
 //   - ErrMalformed: the input is none of these.
@@ -159,6 +162,8 @@ func (e *Extractor) Extract(ctx context.Context, r io.ReaderAt, size int64, opts
 		return rd.msgFile(r, size)
 	case bytes.HasPrefix(head[:n], []byte("From ")):
 		return rd.mbox(r, size)
+	case n >= 4 && binary.LittleEndian.Uint32(head[:]) == tnef.Signature:
+		return rd.tnefFile(r, size)
 	}
 	return rd.eml(r, size)
 }

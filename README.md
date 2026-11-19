@@ -12,6 +12,7 @@ Standard library and go-fast modules only.
 | `.eml` (RFC 5322, MIME) | Headers with RFC 2047 encoded words and RFC 2231 parameters; base64, quoted-printable, 7bit, 8bit, binary; every multipart kind; text/plain bodies as paragraphs, quotes and signature; HTML bodies, alternatives, attachments and attached messages handed to the caller's extractor |
 | `.mbox` | mboxo, mboxrd and mboxcl2; one part per message, read one message at a time |
 | `.msg` (MS-OXMSG) | Subject, sender, recipients, dates, transport headers, plain body; HTML body and compressed RTF body (MS-OXRTFCP) handed to the caller's extractor; attachments by value, attached messages (read recursively), OLE objects and attachments by reference listed |
+| `winmail.dat` (MS-OXTNEF) | Inside a message or as a file: subject, message class, plain body; HTML and RTF bodies and attachments as for `.msg`, attached messages read recursively |
 
 ## Using it
 
@@ -28,7 +29,8 @@ fmt.Println(doc.Markdown())
 
 The format is decided from the bytes, never from the name: a compound file
 is an Outlook message, a file that begins `From ` is a mailbox, a file that
-begins with a header field is a message.
+begins with the TNEF signature is a winmail.dat (format `tnef`), a file
+that begins with a header field is a message.
 
 **Extractors do not import each other.** Every attachment, every attached
 message, and every HTML or RTF body is handed to `Options.Child` through
