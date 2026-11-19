@@ -62,8 +62,9 @@ commit 031432a). Standard library and go-fast modules only.
    Apple Mail exports, and a real .msg (synthetic fixtures only so far).
 2. `.msg`: named properties (`__nameid_version1.0`), so that properties such
    as categories can be read; PR_BODY_HTML as PT_STRING8 with its code page.
-3. Inline images in HTML bodies: an `image` block per `image/*` part
-   (today they are only children).
+3. Done in run 2: an `image` block for every `image/*` part shown in the
+   message (and hidden Outlook image attachments), besides the child.
+   Images referenced by an HTML alternative (`cid:`) are children only.
 4. More single-byte character sets (KOI8-R, windows-1250/1251, ISO-8859-2),
    generated from the Unicode mapping files with provenance.
 5. Tests: an API snapshot and an imports test as go-fast-ooxml has; a

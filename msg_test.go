@@ -91,7 +91,11 @@ func TestMsg(t *testing.T) {
 			"Attachments: report.pdf, fwd.msg, Chart, linked.doc, OLD.TXT",
 		"paragraph: Hello Bob,",
 		"paragraph: The report is attached.",
+		"image: ", // logo.png, hidden from the list of attachments: shown in the body
 	})
+	if img := p.Blocks[4]; img.Image.MIME != "image/png" || img.Attrs["name"] != "logo.png" || img.Image.ID == "" {
+		t.Errorf("image block %+v %+v", img, img.Image)
+	}
 	md := doc.Metadata
 	if md.Title != "Quarterly office report" || md.Authors[0] != "Alice <alice@example.com>" || !md.Created.Equal(time.Date(2026, 3, 3, 10, 0, 0, 0, time.UTC)) {
 		t.Errorf("metadata %+v", md)

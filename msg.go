@@ -505,7 +505,13 @@ func (r *reader) outlookAttachments(m *message, f *cfb.File, prefix []string, la
 				r.child(m, file, mime, nil, listed)
 				continue
 			}
-			r.child(m, file, mime, r.budget(m, data), listed)
+			data = r.budget(m, data)
+			if !listed && strings.HasPrefix(mime, "image/") {
+				// A picture shown in the body: a block, and an embedded
+				// document as well.
+				r.image(m, mime, file, "", data)
+			}
+			r.child(m, file, mime, data, listed)
 		}
 	}
 }

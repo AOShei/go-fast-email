@@ -90,6 +90,15 @@ holds the transport headers Outlook keeps, `message-class` and
   carries `email.alternatives`, since a mail program may show the HTML
   instead and it can say something else. Without a text/plain alternative
   each alternative is an embedded document only.
+- **image/\*** parts a mail program shows in the message (not
+  `Content-Disposition: attachment`, and not inside an alternative that
+  does not give the blocks), and Outlook attachments of an image type
+  marked hidden (pictures shown in the body), are `image` blocks at their
+  place, unless `Options.Images` is `ImagesNone`. The block's text is the
+  `Content-Description`, `Attrs["name"]` the file name, `Image.ID`
+  `sha256-` and 24 hex digits of the bytes' SHA-256, the pixel size read
+  from the header of a PNG, JPEG or GIF, and with `ImagesData` the bytes.
+  Each is an embedded document as well.
 - **message/rfc822** and every other part go to `ExtractChild`, named by
   their `filename` or `name` parameter.
 - **Outlook:** `PR_BODY` gives the blocks; `PR_HTML` (as `text/html`, with

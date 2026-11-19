@@ -3,7 +3,10 @@ package gofastemail_test
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
+	"image"
+	pngenc "image/png"
 	"strings"
 	"testing"
 	"time"
@@ -150,6 +153,45 @@ func TestAttachments(t *testing.T) {
 	fwd := doc.Children[1]
 	if fwd.Source.Format != "eml" || fwd.Metadata.Title != "inner" || fwd.Source.Name != "fwd.eml" {
 		t.Errorf("forwarded %+v %+v", fwd.Source, fwd.Metadata)
+	}
+}
+
+// A picture shown in the message is an image block at its place (and an
+// embedded document); an attached one is an embedded document only.
+func TestInlineImages(t *testing.T) {
+	var png bytes.Buffer
+	img := image.NewGray(image.Rect(0, 0, 3, 2))
+	if err := pngenc.Encode(&png, img); err != nil {
+		t.Fatal(err)
+	}
+	b64 := base64.StdEncoding.EncodeToString(png.Bytes())
+	msg := "From: a@example.com\nSubject: pictures\nContent-Type: multipart/mixed; boundary=b\n\n" +
+		"--b\nContent-Type: text/plain\n\nBefore.\n" +
+		"--b\nContent-Type: image/png; name=\"dot.png\"\nContent-Disposition: inline\nContent-Description: A grey \U0000FB01eld\nContent-Transfer-Encoding: base64\n\n" + b64 + "\n" +
+		"--b\nContent-Type: text/plain\n\nAfter.\n" +
+		"--b\nContent-Type: image/png; name=\"att.png\"\nContent-Disposition: attachment\nContent-Transfer-Encoding: base64\n\n" + b64 + "\n" +
+		"--b--\n"
+	for _, mode := range []gofastcore.ImageMode{gofastcore.ImagesMeta, gofastcore.ImagesData, gofastcore.ImagesNone} {
+		doc := extract(t, msg, &gofastcore.Options{Images: mode})
+		p := &doc.Parts[0]
+		want := []string{"heading: pictures", "paragraph: From: a@example.com\nAttachments: dot.png, att.png", "paragraph: Before.", "image: A grey field", "paragraph: After."}
+		if mode == gofastcore.ImagesNone {
+			want = append(want[:3], want[4])
+		}
+		equal(t, "blocks", texts(p), want)
+		if len(doc.Children) != 2 {
+			t.Errorf("%d children", len(doc.Children))
+		}
+		if mode == gofastcore.ImagesNone {
+			continue
+		}
+		b := p.Blocks[3]
+		if b.Image.Width != 3 || b.Image.Height != 2 || b.Image.MIME != "image/png" || b.Attrs["name"] != "dot.png" || !strings.HasPrefix(b.Image.ID, "sha256-") {
+			t.Errorf("image %+v %+v", b, b.Image)
+		}
+		if (mode == gofastcore.ImagesData) != bytes.Equal(b.Image.Data, png.Bytes()) {
+			t.Errorf("mode %v: %d bytes of data", mode, len(b.Image.Data))
+		}
 	}
 }
 

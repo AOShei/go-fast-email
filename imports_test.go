@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // imports returns the import paths of every non-test Go file under dir,
@@ -54,6 +55,42 @@ func TestImportsStandardLibraryAndGoFastOnly(t *testing.T) {
 				t.Errorf("%s imports %q", file, p)
 			}
 		}
+	}
+}
+
+// Source files hold no invisible or look-alike characters: a test that
+// needs one writes it as an escape.
+func TestSourceHygiene(t *testing.T) {
+	checked := 0
+	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		checked++
+		line := 1
+		for _, r := range string(data) {
+			bad := unicode.In(r, unicode.Cf, unicode.Co, unicode.Zl, unicode.Zp) ||
+				unicode.Is(unicode.Cc, r) && r != '\n' && r != '\t' ||
+				unicode.Is(unicode.Zs, r) && r != ' ' ||
+				r >= 0xFB00 && r <= 0xFB06
+			if bad {
+				t.Errorf("%s:%d: character U+%04X", path, line, r)
+			}
+			if r == '\n' {
+				line++
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checked < 20 {
+		t.Fatalf("only %d files were checked", checked)
 	}
 }
 

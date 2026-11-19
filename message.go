@@ -3,7 +3,13 @@ package gofastemail
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"image"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"net/mail"
 	"strconv"
@@ -362,7 +368,65 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 		return
 	}
 	data, _ := r.decode(m, cte, body) // nil when over the limit
+	if strings.HasPrefix(mediatype, "image/") && !attachment && !alt {
+		// A picture a mail program shows in the message: a block at its
+		// place, and an embedded document as well.
+		var desc string
+		if v, ok := h.Get("Content-Description"); ok {
+			desc = rfc822.DecodeText(v, report)
+		}
+		r.image(m, mediatype, name, desc, data)
+	}
 	r.leaf(m, mediatype, params, name, attachment, alt, data)
+}
+
+// image adds an image block for a picture shown in the message: its
+// description as text, its file name in Attrs["name"], an ID from its
+// bytes, its pixel size where the format is one the standard library
+// reads, and with ImagesData the bytes.
+func (r *reader) image(m *message, mediatype, name, desc string, data []byte) {
+	if r.opts.Images == gofastcore.ImagesNone {
+		return
+	}
+	text := gofastcore.ExpandLigatures(clean.Cut(clean.Line(desc), 4096))
+	if !r.take(m, gofastcore.BlockCost+len(text)) {
+		return
+	}
+	img := &gofastcore.Image{MIME: mediatype}
+	if len(data) > 0 {
+		sum := sha256.Sum256(data)
+		img.ID = "sha256-" + hex.EncodeToString(sum[:12])
+		img.Width, img.Height = imageSize(mediatype, data)
+		if r.opts.Images == gofastcore.ImagesData {
+			img.Data = data
+		}
+	}
+	b := gofastcore.Block{Kind: gofastcore.KindImage, Text: text, Image: img}
+	if name != "" {
+		b.Attrs = map[string]string{gofastcore.AttrName: name}
+	}
+	m.body = append(m.body, b)
+}
+
+// imageSize returns the pixel size of a PNG, JPEG or GIF image from its
+// header, or zeros.
+func imageSize(mediatype string, data []byte) (int, int) {
+	var decode func(io.Reader) (image.Config, error)
+	switch mediatype {
+	case "image/png":
+		decode = png.DecodeConfig
+	case "image/jpeg", "image/jpg", "image/pjpeg":
+		decode = jpeg.DecodeConfig
+	case "image/gif":
+		decode = gif.DecodeConfig
+	default:
+		return 0, 0
+	}
+	c, err := decode(bytes.NewReader(data))
+	if err != nil || c.Width < 0 || c.Height < 0 {
+		return 0, 0
+	}
+	return c.Width, c.Height
 }
 
 // leaf handles a part that is not multipart. data is nil when its content
