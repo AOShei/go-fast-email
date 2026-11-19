@@ -1,0 +1,30 @@
+go-fast-email
+Copyright (c) 2025 Andrew O'Shei. Licensed under the MIT License (see LICENSE).
+
+Character set tables (internal/charset/tables.go)
+
+  windows-1252, bytes 0x80 to 0x9F: from the WHATWG Encoding Standard,
+  index-windows-1252 (https://encoding.spec.whatwg.org/index-windows-1252.txt),
+  which agrees with the Unicode Consortium's mapping
+  MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1252.TXT at every byte that mapping
+  defines. The five bytes the Unicode mapping leaves undefined are decoded
+  as U+FFFD. The 32 entries were written out from the specification by hand
+  (no network access during the run that wrote them) and are checked by
+  internal/charset/charset_test.go against the code points of the
+  specification; they should be compared once more with the published
+  index.
+
+  ISO/IEC 8859-15, the eight bytes where it differs from ISO-8859-1: from
+  the Unicode Consortium's mapping MAPPINGS/ISO8859/8859-15.TXT, written
+  out in the same way.
+
+  The WHATWG Encoding Standard is licensed under the Creative Commons
+  Attribution 4.0 International License. The Unicode mapping files are
+  provided under the Unicode terms of use, which permit their use in
+  products supporting the Unicode Standard.
+
+Compound file reader (internal/cfb)
+
+  Copied from go-fast-ooxml (github.com/AOShei/go-fast-ooxml, internal/cfb),
+  by the same author and under the same MIT License, with a function added
+  to list the entries of a storage other than the root.
