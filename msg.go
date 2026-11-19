@@ -96,6 +96,9 @@ const maxStorages = 10_000
 type props struct {
 	f      *cfb.File
 	prefix []string
+	// values holds the variable-length properties by tag when they come
+	// from a TNEF stream, not from a compound file (f is nil).
+	values map[uint32][]byte
 	fixed  map[uint32]uint64
 	label  string // the character set of PT_STRING8 values
 	limit  int64
@@ -130,6 +133,14 @@ func (p *props) path(name string) []string {
 // read returns the content of the stream of a variable-length property,
 // to at most the message limit.
 func (p *props) read(id, typ uint16) ([]byte, bool) {
+	if p.f == nil {
+		v, ok := p.values[uint32(id)<<16|uint32(typ)]
+		if int64(len(v)) > p.limit {
+			p.m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("a property of %d bytes read to %d", len(v), p.limit))
+			v = v[:p.limit]
+		}
+		return v, ok
+	}
 	s, err := p.f.Open(p.path(fmt.Sprintf("__substg1.0_%04X%04X", id, typ))...)
 	if err != nil {
 		return nil, false
@@ -479,40 +490,53 @@ func (r *reader) outlookAttachments(m *message, f *cfb.File, prefix []string, la
 		storage := append(append([]string(nil), prefix...), name)
 		ap := r.readProps(m, f, storage, 8)
 		ap.label = label
-		method, _ := ap.int32(pidAttachMethod)
-		file := clean.Cut(clean.Line(firstOf(ap.str(pidAttachLongFilename), ap.str(pidAttachFilename), ap.str(pidDisplayName))), maxNameBytes)
-		mime := strings.ToLower(clean.Line(ap.str(pidAttachMimeTag)))
-		if !rfc822.Token(mime) || !strings.Contains(mime, "/") {
-			mime = "application/octet-stream"
-		}
-		// An attachment Outlook does not list (a picture shown in the
-		// body) is extracted all the same, and not named in the headers.
-		listed := !ap.bool(pidAttachmentHidden)
-		switch method {
-		case attachEmbeddedMsg:
+		r.outlookAttachment(m, ap, "", func(file string, listed bool) {
 			r.embedded(m, f, append(storage, "__substg1.0_3701000D"), file, listed)
-		case attachOLE:
-			// An OLE object is a storage of the application that made it;
-			// it is listed, not read.
-			r.child(m, file, "application/x-oleobject", nil, listed)
-		case attachByReference, attachByRefResolve, attachByRefOnly, attachByWebRef:
-			path := clean.Cut(clean.Line(firstOf(ap.str(pidAttachLongPathname), ap.str(pidAttachPathname))), 1024)
-			m.warn(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, fmt.Sprintf("an attachment refers to a file outside the message: %q", path))
+		})
+	}
+}
+
+// outlookAttachment reads one attachment of an Outlook message or of a
+// TNEF stream from its properties. title is a file name to use when the
+// properties give none; embedded reads an attached message.
+func (r *reader) outlookAttachment(m *message, ap *props, title string, embedded func(file string, listed bool)) {
+	method, _ := ap.int32(pidAttachMethod)
+	file := clean.Cut(clean.Line(firstOf(ap.str(pidAttachLongFilename), ap.str(pidAttachFilename), ap.str(pidDisplayName), title)), maxNameBytes)
+	mime := strings.ToLower(clean.Line(ap.str(pidAttachMimeTag)))
+	if !rfc822.Token(mime) || !strings.Contains(mime, "/") {
+		mime = "application/octet-stream"
+	}
+	// An attachment Outlook does not list (a picture shown in the
+	// body) is extracted all the same, and not named in the headers.
+	listed := !ap.bool(pidAttachmentHidden)
+	switch method {
+	case attachEmbeddedMsg:
+		embedded(file, listed)
+	case attachOLE:
+		// An OLE object is a storage of the application that made it;
+		// it is listed, not read.
+		r.child(m, file, "application/x-oleobject", nil, listed)
+	case attachByReference, attachByRefResolve, attachByRefOnly, attachByWebRef:
+		path := clean.Cut(clean.Line(firstOf(ap.str(pidAttachLongPathname), ap.str(pidAttachPathname))), 1024)
+		m.warn(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, fmt.Sprintf("an attachment refers to a file outside the message: %q", path))
+		r.child(m, file, mime, nil, listed)
+	default:
+		data, ok := ap.read(pidAttachData, ptBinary)
+		if !ok {
 			r.child(m, file, mime, nil, listed)
-		default:
-			data, ok := ap.read(pidAttachData, ptBinary)
-			if !ok {
-				r.child(m, file, mime, nil, listed)
-				continue
-			}
-			data = r.budget(m, data)
-			if !listed && strings.HasPrefix(mime, "image/") {
-				// A picture shown in the body: a block, and an embedded
-				// document as well.
-				r.image(m, mime, file, "", data)
-			}
-			r.child(m, file, mime, data, listed)
+			return
 		}
+		data = r.budget(m, data)
+		if isTNEF(mime) || strings.EqualFold(file, "winmail.dat") {
+			r.tnefChild(m, file, mime, data, listed)
+			return
+		}
+		if !listed && strings.HasPrefix(mime, "image/") {
+			// A picture shown in the body: a block, and an embedded
+			// document as well.
+			r.image(m, mime, file, "", data)
+		}
+		r.child(m, file, mime, data, listed)
 	}
 }
 

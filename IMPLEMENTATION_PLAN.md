@@ -54,18 +54,27 @@ commit 031432a). Standard library and go-fast modules only.
 | 3. msg | cfb copied from go-fast-ooxml; property streams; recipients; attachments by value, embedded messages, OLE listed; PR_RTF_COMPRESSED (MS-OXRTFCP) to `application/rtf` child; PR_HTML child; tests, fuzz | done (named properties `__nameid_version1.0` and multi-valued properties not read; RTF CRC not checked) |
 | 4. cmd | `cmd/gofastemail` printing JSON/Markdown/text like gofastooxml | done |
 | 5. README | what is read, mapping, warnings, hidden reasons, limits, what is not read | done |
-| 6. next | see below | todo |
+| 6. run 2 | image blocks for pictures shown in a message; TNEF (winmail.dat) read as an embedded document of format `tnef` (internal/tnef); `input.external_reference` for message/external-body; base64 without a copy of the input; imports, source-hygiene and API-snapshot tests | done |
+| 7. next | see below | todo |
 
 ## Next (in order)
 
 1. Check against real mail: messages from Thunderbird, Outlook, Gmail and
-   Apple Mail exports, and a real .msg (synthetic fixtures only so far).
-2. `.msg`: named properties (`__nameid_version1.0`), so that properties such
-   as categories can be read; PR_BODY_HTML as PT_STRING8 with its code page.
-3. Done in run 2: an `image` block for every `image/*` part shown in the
-   message (and hidden Outlook image attachments), besides the child.
-   Images referenced by an HTML alternative (`cid:`) are children only.
-4. More single-byte character sets (KOI8-R, windows-1250/1251, ISO-8859-2),
-   generated from the Unicode mapping files with provenance.
-5. Tests: an API snapshot and an imports test as go-fast-ooxml has; a
-   benchmark on a large mailbox.
+   Apple Mail exports, a real .msg and a real winmail.dat (synthetic
+   fixtures only so far; the TNEF property encoding was written from
+   [MS-OXTNEF] as remembered, with no copy of the spec at hand).
+2. More single-byte character sets (KOI8-R, windows-1250/1251, ISO-8859-2,
+   and the Windows code pages of .msg/TNEF PT_STRING8), generated from the
+   WHATWG indexes or Unicode mapping files with provenance. Run 2 had no
+   network and no permission to read local copies, so did not start it.
+   Today those become U+FFFD with a warning: real content is lost.
+3. `.msg` and TNEF: named properties (`__nameid_version1.0`; named entries
+   of TNEF property lists), for categories and meeting details (location,
+   start, end of an IPM.Appointment / meeting request).
+4. Memory: a text/plain body is held about four times over while it is
+   decoded and split (bytes, string, cleaned string, blocks); with the
+   default 256 MiB message limit that can reach 1 GiB for one hostile
+   message. Decode and split in a streaming pass, or lower the default.
+5. A benchmark on a large mailbox.
+6. uuencoded attachments inside text/plain bodies (`begin 644 name`):
+   today their lines are paragraph text.

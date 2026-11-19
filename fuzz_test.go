@@ -21,6 +21,9 @@ func FuzzExtract(f *testing.F) {
 	// An Outlook message: the fuzzer changes the compound file, the
 	// property streams and the compressed RTF.
 	f.Add(outlookMessage())
+	// A message with a winmail.dat, not encoded, so that the fuzzer
+	// changes the TNEF stream directly.
+	f.Add(append([]byte("From: a\nContent-Type: application/ms-tnef\n\n"), winmailDat()...))
 	e := &gofastemail.Extractor{MaxMessageBytes: 1 << 20}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// An input that takes seconds is a bug: crash the worker, so that

@@ -452,6 +452,8 @@ func (r *reader) leaf(m *message, mediatype string, params map[string]string, na
 		r.child(m, name, withCharset(mediatype, params), data, false)
 	case mediatype == "text/plain" && alt:
 		r.child(m, name, withCharset(mediatype, params), data, false)
+	case isTNEF(mediatype) || strings.EqualFold(name, "winmail.dat"):
+		r.tnefChild(m, name, mediatype, data, true)
 	case strings.HasPrefix(mediatype, "message/"):
 		r.child(m, name, mediatype, data, true)
 	case strings.HasPrefix(mediatype, "text/"):

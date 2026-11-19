@@ -99,6 +99,16 @@ holds the transport headers Outlook keeps, `message-class` and
   `sha256-` and 24 hex digits of the bytes' SHA-256, the pixel size read
   from the header of a PNG, JPEG or GIF, and with `ImagesData` the bytes.
   Each is an embedded document as well.
+- **winmail.dat** (`application/ms-tnef`, or a part of that name, that
+  begins with the TNEF signature; [MS-OXTNEF]) is where Outlook puts a
+  message's RTF body and its attachments. It is read by this library,
+  through `ExtractChild` all the same (so the depth limit and budgets
+  apply), into an embedded document of format `tnef`: one `message`
+  part with the subject as heading and the plain body (`PR_BODY`, or the
+  old `attBody` in its code page) as blocks; the HTML and compressed RTF
+  bodies, the attachments and attached messages (read recursively) as its
+  own embedded documents, as for an Outlook message. Named and
+  multi-valued properties are not read.
 - **message/rfc822** and every other part go to `ExtractChild`, named by
   their `filename` or `name` parameter.
 - **Outlook:** `PR_BODY` gives the blocks; `PR_HTML` (as `text/html`, with
@@ -139,7 +149,7 @@ not by a flag.
 | `email.alternatives` (warning) | The message has alternative bodies |
 | `email.unknown_transfer_encoding` (warning) | A part declares a transfer encoding other than base64, quoted-printable, 7bit, 8bit or binary; its bytes are taken as they are |
 | `text.unmapped_glyphs` | A character set not decoded, or bytes not valid in the one declared |
-| `input.repaired` | A header section ended by a line that is not a header; a multipart body without closing boundary or without any boundary; base64 with characters outside its alphabet; an unreadable compressed RTF body |
+| `input.repaired` | A header section ended by a line that is not a header; a multipart body without closing boundary or without any boundary; base64 with characters outside its alphabet; an unreadable compressed RTF body; a damaged TNEF stream (cut short, a wrong checksum, an unreadable property list) |
 | `input.external_reference` | An Outlook attachment by reference names a file outside the message; a `message/external-body` part names content elsewhere (its URL or file is in the message; nothing is fetched) |
 | `text.hidden` | See above |
 | `limit.exceeded` (error) | Any limit below |
