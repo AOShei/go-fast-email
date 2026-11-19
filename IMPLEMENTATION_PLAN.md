@@ -52,5 +52,19 @@ commit 031432a). Standard library and go-fast modules only.
 | 1. eml | charset, header/encoded-word/RFC 2231 parsing, transfer decoding, multipart walk, text/plain blocks, children, limits, tests, fuzz | done |
 | 2. mbox | separator scan (`From ` after a blank line), mboxrd unquoting, Content-Length (mboxcl2), part range, MaxParts, tests, fuzz | done |
 | 3. msg | cfb copied from go-fast-ooxml; property streams; recipients; attachments by value, embedded messages, OLE listed; PR_RTF_COMPRESSED (MS-OXRTFCP) to `application/rtf` child; PR_HTML child; tests, fuzz | done (named properties `__nameid_version1.0` and multi-valued properties not read; RTF CRC not checked) |
-| 4. cmd | `cmd/gofastemail` printing JSON/Markdown/text like gofastooxml | todo |
-| 5. README | what is read, mapping, warnings, hidden reasons, limits, what is not read | todo |
+| 4. cmd | `cmd/gofastemail` printing JSON/Markdown/text like gofastooxml | done |
+| 5. README | what is read, mapping, warnings, hidden reasons, limits, what is not read | done |
+| 6. next | see below | todo |
+
+## Next (in order)
+
+1. Check against real mail: messages from Thunderbird, Outlook, Gmail and
+   Apple Mail exports, and a real .msg (synthetic fixtures only so far).
+2. `.msg`: named properties (`__nameid_version1.0`), so that properties such
+   as categories can be read; PR_BODY_HTML as PT_STRING8 with its code page.
+3. Inline images in HTML bodies: an `image` block per `image/*` part
+   (today they are only children).
+4. More single-byte character sets (KOI8-R, windows-1250/1251, ISO-8859-2),
+   generated from the Unicode mapping files with provenance.
+5. Tests: an API snapshot and an imports test as go-fast-ooxml has; a
+   benchmark on a large mailbox.
