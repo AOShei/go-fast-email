@@ -39,7 +39,7 @@ func TestSimple(t *testing.T) {
 		"paragraph: The plan is ready.\nSee below.",
 		"paragraph: Alice",
 	})
-	if p.Blocks[1].Attrs["role"] != "headers" || p.Blocks[4].Attrs["role"] != "signature" {
+	if p.Blocks[1].Attrs["role"] != "headers" || p.Blocks[4].Attrs["role"] != gofastemail.RoleSignature {
 		t.Errorf("roles: %v %v", p.Blocks[1].Attrs, p.Blocks[4].Attrs)
 	}
 	if p.Name != "The office plan" {

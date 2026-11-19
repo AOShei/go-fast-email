@@ -36,7 +36,7 @@ const (
 // Values of Attrs["role"] and of the note type this library uses.
 const (
 	RoleHeaders   = "headers"
-	RoleSignature = textbody.RoleSignature
+	RoleSignature = "signature" // the value of textbody.RoleSignature
 	// NoteHeaders: a note block that holds the headers a mail program does
 	// not show, one "Name: value" per line; flagged invisible.
 	NoteHeaders = "headers"

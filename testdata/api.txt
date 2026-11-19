@@ -1,0 +1,40 @@
+package gofastemail
+
+const (
+	DefaultMaxInputBytes	= 16 << 30
+	DefaultMaxDecodedBytes	= 2 << 30
+)
+const (
+	DefaultMaxMessageBytes	= 256 << 20
+	DefaultMaxHeaderBytes	= 1 << 20
+	DefaultMaxMIMEDepth	= 32
+	DefaultMaxMIMEParts	= 10_000
+)
+const (
+	WarnAlternatives	= "email.alternatives"
+	WarnUnknownTransferEncoding	= "email.unknown_transfer_encoding"
+)
+const (
+	AttrRole	= gofastcore.AttrRole
+	AttrChildren	= "children"
+)
+const (
+	RoleHeaders	= "headers"
+	RoleSignature	= "signature"
+	NoteHeaders	= "headers"
+	NotePreamble	= "mime_preamble"
+	NoteEpilogue	= "mime_epilogue"
+)
+const DefaultMaxParts = 1_000_000
+func Extract(ctx context.Context, r io.ReaderAt, size int64, opts *gofastcore.Options) (*gofastcore.Document, error)
+func ExtractFile(ctx context.Context, path string, opts *gofastcore.Options) (*gofastcore.Document, error)
+
+type Extractor struct {
+	MaxMessageBytes	int64
+	MaxHeaderBytes	int
+	MaxMIMEDepth	int
+	MaxMIMEParts	int
+}
+func (e *Extractor) Extract(ctx context.Context, r io.ReaderAt, size int64, opts *gofastcore.Options) (*gofastcore.Document, error)
+func (e *Extractor) ExtractFile(ctx context.Context, path string, opts *gofastcore.Options) (*gofastcore.Document, error)
+func (e *Extractor) Formats() []string
