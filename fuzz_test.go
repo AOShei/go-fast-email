@@ -28,7 +28,7 @@ func FuzzExtract(f *testing.F) {
 		timer := time.AfterFunc(5*time.Second, func() { panic("Extract took more than 5s") })
 		defer timer.Stop()
 		var got []seen
-		opts :=&gofastcore.Options{Child: dispatcher(&got), Limits: gofastcore.Limits{MaxDecodedBytes: 4 << 20, MaxTextBytes: 4 << 20}}
+		opts := &gofastcore.Options{Child: dispatcher(&got), Limits: gofastcore.Limits{MaxDecodedBytes: 4 << 20, MaxTextBytes: 4 << 20}}
 		doc, err := e.Extract(context.Background(), bytes.NewReader(data), int64(len(data)), opts)
 		checkOutcome(t, doc, err)
 	})
