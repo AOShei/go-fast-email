@@ -181,25 +181,13 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 		return out
 	}
 	subject := strings.Join(get("subject"), " ")
-	if subject != "" {
-		m.part.Name = gofastcore.ExpandLigatures(clean.Cut(subject, maxNameBytes))
-		heading := gofastcore.Block{Kind: gofastcore.KindHeading, Level: 1, Text: gofastcore.ExpandLigatures(subject)}
-		if r.take(m, gofastcore.BlockCost+len(heading.Text)) {
-			m.part.Blocks = append(m.part.Blocks, heading)
-		}
-	}
 	var lines []string
 	for _, s := range shown {
 		for _, v := range get(s.key) {
-			lines = append(lines, s.label+": "+gofastcore.ExpandLigatures(v))
+			lines = append(lines, s.label+": "+v)
 		}
 	}
-	headersAt := -1
-	if len(lines) > 0 && r.take(m, gofastcore.BlockCost+len(strings.Join(lines, "\n"))) {
-		headersAt = len(m.part.Blocks)
-		m.part.Blocks = append(m.part.Blocks, gofastcore.Block{Kind: gofastcore.KindParagraph, Text: strings.Join(lines, "\n"),
-			Attrs: map[string]string{AttrRole: RoleHeaders}})
-	}
+	headersAt := r.head(m, subject, lines)
 
 	if m.inline {
 		md := &r.doc.Metadata
@@ -244,8 +232,33 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 	}
 
 	r.entity(m, h, raw[bodyAt:], 0, false, "text/plain")
-	m.part.Blocks = append(m.part.Blocks, m.body...)
+	r.tail(m, headersAt)
+}
 
+// head adds the heading that holds the subject and the block of the
+// headers a mail program shows, and returns the index of that block, or
+// -1 if there is none.
+func (r *reader) head(m *message, subject string, lines []string) int {
+	if subject != "" {
+		m.part.Name = gofastcore.ExpandLigatures(clean.Cut(subject, maxNameBytes))
+		heading := gofastcore.Block{Kind: gofastcore.KindHeading, Level: 1, Text: gofastcore.ExpandLigatures(subject)}
+		if r.take(m, gofastcore.BlockCost+len(heading.Text)) {
+			m.part.Blocks = append(m.part.Blocks, heading)
+		}
+	}
+	text := gofastcore.ExpandLigatures(strings.Join(lines, "\n"))
+	if len(lines) == 0 || !r.take(m, gofastcore.BlockCost+len(text)) {
+		return -1
+	}
+	m.part.Blocks = append(m.part.Blocks, gofastcore.Block{Kind: gofastcore.KindParagraph, Text: text,
+		Attrs: map[string]string{AttrRole: RoleHeaders}})
+	return len(m.part.Blocks) - 1
+}
+
+// tail adds the body's blocks after the headers, the names of the
+// attachments to the headers block, and finishes the part.
+func (r *reader) tail(m *message, headersAt int) {
+	m.part.Blocks = append(m.part.Blocks, m.body...)
 	if headersAt >= 0 && (len(m.attached) > 0 || len(m.children) > 0) {
 		b := &m.part.Blocks[headersAt]
 		if len(m.attached) > 0 {

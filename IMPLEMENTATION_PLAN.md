@@ -50,7 +50,7 @@ commit 031432a). Standard library and go-fast modules only.
 | Phase | Delivers | Status |
 |---|---|---|
 | 1. eml | charset, header/encoded-word/RFC 2231 parsing, transfer decoding, multipart walk, text/plain blocks, children, limits, tests, fuzz | done |
-| 2. mbox | separator scan (`From ` after a blank line), mboxrd unquoting, Content-Length (mboxcl2), part range, MaxParts, tests, fuzz | todo |
-| 3. msg | cfb copied from go-fast-ooxml; property streams; recipients; attachments by value, embedded messages, OLE listed; PR_RTF_COMPRESSED (MS-OXRTFCP) to `application/rtf` child; PR_HTML child; tests, fuzz | todo |
+| 2. mbox | separator scan (`From ` after a blank line), mboxrd unquoting, Content-Length (mboxcl2), part range, MaxParts, tests, fuzz | done |
+| 3. msg | cfb copied from go-fast-ooxml; property streams; recipients; attachments by value, embedded messages, OLE listed; PR_RTF_COMPRESSED (MS-OXRTFCP) to `application/rtf` child; PR_HTML child; tests, fuzz | done (named properties `__nameid_version1.0` and multi-valued properties not read; RTF CRC not checked) |
 | 4. cmd | `cmd/gofastemail` printing JSON/Markdown/text like gofastooxml | todo |
 | 5. README | what is read, mapping, warnings, hidden reasons, limits, what is not read | todo |

@@ -17,6 +17,9 @@ func FuzzExtract(f *testing.F) {
 	for _, s := range seeds() {
 		f.Add([]byte(s))
 	}
+	// An Outlook message: the fuzzer changes the compound file, the
+	// property streams and the compressed RTF.
+	f.Add(outlookMessage())
 	e := &gofastemail.Extractor{MaxMessageBytes: 1 << 20}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		var got []seen
