@@ -198,9 +198,21 @@ and GB2312 (936; `gbk`, `gb2312`, `chinese`, `csgb2312`, `gb_2312-80`,
 `big5-hkscs`, `cn-big5`, `csbig5`, `x-x-big5`, `cp950`), in headers,
 encoded words, text/plain bodies and the 8-bit strings of `.msg` and TNEF
 by their code page. A lead byte without a valid trail byte, or at the end
-of the text, is U+FFFD with the warning above. GB18030 (including its
-four-byte sequences), ISO-2022-JP, EUC-JP and KOI8 are not decoded and
-keep the warning.
+of the text, is U+FFFD with the warning above.
+
+GB18030 (`gb18030`, code page 54936), EUC-JP (`euc-jp`,
+`cseucpkdfmtjapanese`, `x-euc-jp`, code page 51932) and ISO-2022-JP
+(`iso-2022-jp`, `csiso2022jp`, code pages 50220 to 50222) are decoded as
+the WHATWG Encoding Standard's decoders do, everywhere the double-byte
+sets are, from the tables `gen/gen_cjk_extra.py` writes. GB18030 has its
+four-byte sequences, supplementary characters included; EUC-JP its
+half-width katakana and JIS X 0212; ISO-2022-JP switches between ASCII,
+JIS-Roman, JIS X 0208 and half-width katakana by escape sequence, and each
+encoded word starts in ASCII. Bytes that make no character are U+FFFD
+with the warning above. The labels `gbk` and `gb2312` stay on code page
+936, which has GB18030's two-byte characters but not its four-byte
+sequences (the Encoding Standard decodes them with the GB18030 decoder).
+KOI8 is not decoded and keeps the warning.
 
 In a `.msg`, 8-bit strings are read in `PR_MESSAGE_CODEPAGE`, else in
 `PR_INTERNET_CPID`. When that is UTF-8 and a string is not valid UTF-8,
@@ -295,7 +307,6 @@ told apart.
   `message/external-body` (passed on as embedded documents, never fetched).
 - Outlook named properties (`__nameid_version1.0`), multi-valued
   properties, and the CRC of compressed RTF.
-- Character sets other than those above, including GB18030, ISO-2022-JP,
-  EUC-JP and KOI8.
+- Character sets other than those above, including KOI8.
 - Byte offsets (`Loc`) for blocks: bodies are decoded before they become
   blocks, so offsets into the file would not be meaningful.

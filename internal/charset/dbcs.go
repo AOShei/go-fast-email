@@ -68,12 +68,7 @@ func dbcsTable(cp int) *dbcs {
 	if !ok {
 		return nil
 	}
-	l.once.Do(func() {
-		if b, err := dbcsFS.ReadFile(l.file); err == nil {
-			l.t = parseDBCS(string(b))
-		}
-	})
-	return l.t
+	return l.get()
 }
 
 // parseDBCS reads lines of "<bytes in hex> <code point in hex>". A line

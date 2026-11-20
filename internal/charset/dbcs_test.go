@@ -64,7 +64,7 @@ func TestDBCSLabels(t *testing.T) {
 		})
 	}
 	// Not decoded.
-	for _, l := range []string{"gb18030", "iso-2022-jp", "euc-jp", "koi8-r", "koi8-u"} {
+	for _, l := range []string{"koi8-r", "koi8-u", "iso-2022-kr", "hz-gb-2312"} {
 		if Known(l) {
 			t.Errorf("%s is known", l)
 		}

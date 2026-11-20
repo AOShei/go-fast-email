@@ -5,8 +5,9 @@
 // ISO-8859-15, windows-874 and windows-1250 to 1258, Mac OS Roman and
 // UTF-16, and the double-byte code pages 932 (Shift_JIS), 936 (GBK and
 // GB2312), 949 (EUC-KR) and 950 (Big5) when their tables are present in
-// tables/ (dbcs.go). GB18030's four-byte sequences, ISO-2022-JP, EUC-JP
-// and KOI8 are not decoded. Any other character set is not guessed at: bytes outside ASCII
+// tables/ (dbcs.go), and GB18030, EUC-JP and ISO-2022-JP from theirs
+// (cjk.go). KOI8 is not decoded. Any other character set is not guessed
+// at: bytes outside ASCII
 // become U+FFFD, and the caller says so in a warning that names the set.
 // Decoding a multi-byte set as a single-byte one would produce text that
 // looks like text and is not.
@@ -93,6 +94,9 @@ func Known(label string) bool {
 	if cp := dbcsLabels[l]; cp != 0 {
 		return dbcsTable(cp) != nil
 	}
+	if set := cjkLabels[l]; set != 0 {
+		return cjkReady(set)
+	}
 	return ok || tableLabels[l] != nil
 }
 
@@ -119,6 +123,9 @@ func decodeTable(t *[128]uint16, b []byte) (string, Result) {
 // Decode returns b, in the character set label names, as UTF-8. It never
 // fails: what cannot be decoded is U+FFFD, and Result says so.
 func Decode(label string, b []byte) (string, Result) {
+	if set := cjkLabels[Normalize(label)]; set != 0 && cjkReady(set) {
+		return decodeCJK(set, b)
+	}
 	if cp := dbcsLabels[Normalize(label)]; cp != 0 {
 		if t := dbcsTable(cp); t != nil {
 			return decodeDBCS(t, cp, b)
