@@ -122,9 +122,14 @@ holds the transport headers Outlook keeps, `message-class` and
 
 ### Character sets
 
-UTF-8, US-ASCII, ISO-8859-1, ISO-8859-15 and windows-1252 are decoded, and
-UTF-16 in `.msg` files. ISO-8859-1 is decoded as windows-1252, as the WHATWG
-Encoding Standard does. Text labelled US-ASCII, or not labelled, that is
+UTF-8, US-ASCII, ISO-8859-1, ISO-8859-15, windows-874, windows-1250 to
+1258 and Mac OS Roman are decoded, and UTF-16 in `.msg` files; the same
+code pages where an Outlook message or TNEF stream names one for its 8-bit
+strings. ISO-8859-1, ISO-8859-9 and ISO-8859-11 (TIS-620) are decoded as
+windows-1252, windows-1254 and windows-874, as the WHATWG Encoding
+Standard does. KOI8-R, KOI8-U and the other ISO-8859 parts (2, 3, 4, 5, 6,
+7, 8, 10, 13, 14, 16) are not decoded yet: no table verified against its
+mapping file was at hand. Text labelled US-ASCII, or not labelled, that is
 valid UTF-8 is read as UTF-8. Every other character set is not guessed at:
 bytes outside ASCII become U+FFFD and the part has a `text.unmapped_glyphs`
 warning that names the set. The tables' sources are in [`NOTICE`](NOTICE).

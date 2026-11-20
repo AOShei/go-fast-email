@@ -1,7 +1,8 @@
 // Package charset turns the bytes of a message, in the character set it
 // declares, into UTF-8.
 //
-// It knows UTF-8, US-ASCII, ISO-8859-1, ISO-8859-15, windows-1252 and
+// It knows UTF-8, US-ASCII, ISO-8859-1, ISO-8859-9, ISO-8859-11 (TIS-620),
+// ISO-8859-15, windows-874 and windows-1250 to 1258, Mac OS Roman and
 // UTF-16. Any other character set is not guessed at: bytes outside ASCII
 // become U+FFFD, and the caller says so in a warning that names the set.
 // Decoding a multi-byte set as a single-byte one would produce text that
@@ -61,15 +62,60 @@ var labels = map[string]kind{
 	"utf-16le": kindUTF16LE, "utf-16be": kindUTF16BE, "utf-16": kindUTF16, "ucs-2": kindUTF16,
 }
 
+// tableLabels names the code pages decoded with a table of codepages.go,
+// by their labels in the WHATWG Encoding Standard and the names Windows
+// and mail programs use. ISO-8859-9 and ISO-8859-11 (TIS-620) are decoded
+// as windows-1254 and windows-874, as the WHATWG Encoding Standard does:
+// each Windows page is the ISO part with characters added in 0x80 to 0x9F,
+// where the ISO part has only control characters, as for ISO-8859-1.
+var tableLabels = map[string]*[128]uint16{
+	"windows-1250": &cp1250, "cp1250": &cp1250, "x-cp1250": &cp1250,
+	"windows-1251": &cp1251, "cp1251": &cp1251, "x-cp1251": &cp1251,
+	"windows-1253": &cp1253, "cp1253": &cp1253, "x-cp1253": &cp1253,
+	"windows-1254": &cp1254, "cp1254": &cp1254, "x-cp1254": &cp1254,
+	"iso-8859-9": &cp1254, "iso8859-9": &cp1254, "iso_8859-9": &cp1254, "latin5": &cp1254, "l5": &cp1254, "iso-ir-148": &cp1254, "csisolatin5": &cp1254,
+	"windows-1255": &cp1255, "cp1255": &cp1255, "x-cp1255": &cp1255,
+	"windows-1256": &cp1256, "cp1256": &cp1256, "x-cp1256": &cp1256,
+	"windows-1257": &cp1257, "cp1257": &cp1257, "x-cp1257": &cp1257,
+	"windows-1258": &cp1258, "cp1258": &cp1258, "x-cp1258": &cp1258,
+	"windows-874": &cp874, "cp874": &cp874, "dos-874": &cp874, "x-cp874": &cp874,
+	"tis-620": &cp874, "iso-8859-11": &cp874, "iso8859-11": &cp874,
+	"macintosh": &macRoman, "mac": &macRoman, "x-mac-roman": &macRoman, "csmacintosh": &macRoman, "cp10000": &macRoman,
+}
+
 // Known reports whether label names a character set this package decodes.
 func Known(label string) bool {
-	_, ok := labels[Normalize(label)]
-	return ok
+	l := Normalize(label)
+	_, ok := labels[l]
+	return ok || tableLabels[l] != nil
+}
+
+// decodeTable decodes a single-byte code page whose upper half is t; a
+// byte t leaves undefined is U+FFFD.
+func decodeTable(t *[128]uint16, b []byte) (string, Result) {
+	res := Result{Known: true}
+	var sb strings.Builder
+	sb.Grow(len(b) + len(b)/2)
+	for _, c := range b {
+		switch {
+		case c < 0x80:
+			sb.WriteByte(c)
+		case t[c-0x80] == 0:
+			sb.WriteRune(utf8.RuneError)
+			res.Replaced = true
+		default:
+			sb.WriteRune(rune(t[c-0x80]))
+		}
+	}
+	return sb.String(), res
 }
 
 // Decode returns b, in the character set label names, as UTF-8. It never
 // fails: what cannot be decoded is U+FFFD, and Result says so.
 func Decode(label string, b []byte) (string, Result) {
+	if t := tableLabels[Normalize(label)]; t != nil {
+		return decodeTable(t, b)
+	}
 	k := labels[Normalize(label)]
 	switch k {
 	case kindUTF8, kindASCII:
@@ -141,7 +187,7 @@ func DecodeUTF16(b []byte, le bool) (string, Result) {
 
 func hasUndefined1252(b []byte) bool {
 	for _, c := range b {
-		if c >= 0x80 && c < 0xA0 && cp1252[c-0x80] == 0xFFFD {
+		if c >= 0x80 && c < 0xA0 && cp1252C1[c-0x80] == 0xFFFD {
 			return true
 		}
 	}
@@ -156,7 +202,7 @@ func singleByte(b []byte, k kind) string {
 		case c < 0x80:
 			sb.WriteByte(c)
 		case k == kindCP1252 && c < 0xA0:
-			sb.WriteRune(cp1252[c-0x80])
+			sb.WriteRune(cp1252C1[c-0x80])
 		case k == kindLatin9:
 			if r, ok := latin9[c]; ok {
 				sb.WriteRune(r)

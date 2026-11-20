@@ -207,6 +207,10 @@ func codepageLabel(cp int32) string {
 		return "iso-8859-1"
 	case 28605:
 		return "iso-8859-15"
+	case 28599:
+		return "iso-8859-9"
+	case 10000:
+		return "macintosh"
 	case 20127:
 		return "us-ascii"
 	case 1200:

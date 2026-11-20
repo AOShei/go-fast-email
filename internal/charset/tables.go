@@ -4,13 +4,13 @@ package charset
 // differs from ISO-8859-1, whose bytes 0xA0 to 0xFF are the code points of
 // the same number. Their sources are recorded in NOTICE.
 
-// cp1252 maps bytes 0x80 to 0x9F of windows-1252, from the WHATWG Encoding
+// cp1252C1 maps bytes 0x80 to 0x9F of windows-1252, from the WHATWG Encoding
 // Standard's index-windows-1252, which agrees with Unicode's
 // MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1252.TXT at every byte that table
 // defines. The five bytes that table leaves undefined (0x81, 0x8D, 0x8F,
 // 0x90, 0x9D) are control characters in the WHATWG index; here they are
 // U+FFFD, since control characters are not text.
-var cp1252 = [32]rune{
+var cp1252C1 = [32]rune{
 	0x20AC, 0xFFFD, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, // 0x80
 	0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0xFFFD, 0x017D, 0xFFFD, // 0x88
 	0xFFFD, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, // 0x90

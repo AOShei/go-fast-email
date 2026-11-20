@@ -68,11 +68,12 @@ commit 031432a). Standard library and go-fast modules only.
    Apple Mail exports, a real .msg and a real winmail.dat (synthetic
    fixtures only so far; the TNEF property encoding was written from
    [MS-OXTNEF] as remembered, with no copy of the spec at hand).
-2. More single-byte character sets (KOI8-R, windows-1250/1251, ISO-8859-2,
-   and the Windows code pages of .msg/TNEF PT_STRING8), generated from the
-   WHATWG indexes or Unicode mapping files with provenance. Run 2 had no
-   network and no permission to read local copies, so did not start it.
-   Today those become U+FFFD with a warning: real content is lost.
+2. Run 3 added windows-874, 1250-1258 and Mac Roman (tables copied from
+   go-fast-rtf, verified there against Python's codecs), and ISO-8859-9/-11
+   by the WHATWG aliases. Still not decoded: KOI8-R/U and ISO-8859-2 to -8,
+   -10, -13, -14, -16. Generate them from the WHATWG indexes or Unicode
+   mapping files, and verify byte for byte (as go-fast-rtf did), with
+   provenance. Until then they become U+FFFD with a warning.
 3. `.msg` and TNEF: named properties (`__nameid_version1.0`; named entries
    of TNEF property lists), for categories and meeting details (location,
    start, end of an IPM.Appointment / meeting request).

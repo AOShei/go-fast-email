@@ -45,8 +45,54 @@ func TestCP1252(t *testing.T) {
 		if !ok {
 			r = 0xFFFD
 		}
-		if cp1252[b-0x80] != r {
-			t.Errorf("0x%02X = U+%04X, want U+%04X", b, cp1252[b-0x80], r)
+		if cp1252C1[b-0x80] != r {
+			t.Errorf("0x%02X = U+%04X, want U+%04X", b, cp1252C1[b-0x80], r)
+		}
+	}
+}
+
+// The windows-1252 table copied from go-fast-rtf and the one written here
+// from the WHATWG index were transcribed separately; they must agree.
+func TestCP1252TablesAgree(t *testing.T) {
+	for i := 0; i < 32; i++ {
+		want := rune(cp1252[i])
+		if want == 0 {
+			want = 0xFFFD
+		}
+		if cp1252C1[i] != want {
+			t.Errorf("0x%02X: U+%04X and U+%04X", 0x80+i, cp1252C1[i], want)
+		}
+	}
+	for i := 32; i < 128; i++ {
+		if cp1252[i] != uint16(0x80+i) {
+			t.Errorf("0x%02X = U+%04X", 0x80+i, cp1252[i])
+		}
+	}
+}
+
+func TestCodePages(t *testing.T) {
+	cases := []struct{ label, in, want string }{
+		{"windows-1251", "\xcf\xf0\xe8\xe2\xe5\xf2", "\U0000041f\U00000440\U00000438\U00000432\U00000435\U00000442"},
+		{"cp1250", "\xa3\xf3d\x9f", "\U00000141\U000000f3d\U0000017a"},
+		{"ISO-8859-9", "\xdd\xfe", "\U00000130\U0000015f"},
+		{"macintosh", "caf\x8e", "caf\U000000e9"},
+		{"windows-1253", "\xe1", "\U000003b1"},
+		{"tis-620", "\xa1", "\U00000e01"},
+	}
+	for _, c := range cases {
+		got, res := Decode(c.label, []byte(c.in))
+		if got != c.want || !res.Known || res.Replaced || !Known(c.label) {
+			t.Errorf("%s: %q %+v, want %q", c.label, got, res, c.want)
+		}
+	}
+	// A byte the mapping leaves undefined.
+	if got, res := Decode("windows-1250", []byte("a\x81")); got != "a\U0000fffd" || !res.Replaced {
+		t.Errorf("undefined byte: %q %+v", got, res)
+	}
+	// Not decoded: no verifiable table.
+	for _, l := range []string{"koi8-r", "iso-8859-2", "iso-8859-5", "iso-8859-7"} {
+		if Known(l) {
+			t.Errorf("%s is known", l)
 		}
 	}
 }
