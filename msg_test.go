@@ -168,3 +168,33 @@ func TestMsgLimits(t *testing.T) {
 		t.Errorf("cut short: %v", err)
 	}
 }
+
+// An Outlook message without PR_MESSAGE_CODEPAGE whose PR_INTERNET_CPID
+// says UTF-8 but whose 8-bit strings are in the ANSI code page of its
+// locale (PR_MESSAGE_LOCALE_ID), as in Apache POI's
+// ASCII_UTF-8_CP1252_LCID1031.msg: the strings that are not UTF-8 are read
+// in the locale's code page; those that are UTF-8 stay UTF-8.
+func TestMsgLocaleCodepage(t *testing.T) {
+	data := msgtest.Build(msgtest.Msg{Props: []msgtest.Prop{
+		{ID: 0x0037, Type: msgtest.TypeString8, Value: "Subject \xf6\xe4\xfc Subject"},
+		{ID: 0x1000, Type: msgtest.TypeString8, Value: "Body \xc3\xb6 Body"},
+		{ID: 0x3FDE, Value: int32(65001)},
+		{ID: 0x3FF1, Value: int32(1031)},
+	}})
+	doc, err := gofastemail.Extract(context.Background(), bytes.NewReader(data), int64(len(data)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkDoc(t, doc)
+	p := &doc.Parts[0]
+	got := texts(p)
+	if got[0] != "heading: Subject öäü Subject" {
+		t.Errorf("subject %q", got[0])
+	}
+	if got[len(got)-1] != "paragraph: Body ö Body" {
+		t.Errorf("body %q", got[len(got)-1])
+	}
+	if p.Has(gofastcore.WarnTextUnmappedGlyphs) {
+		t.Errorf("warnings %+v", p.Warnings)
+	}
+}
