@@ -134,9 +134,10 @@ func TestMsgManyRecipients(t *testing.T) {
 // an outlier header.
 func TestHeaderNotesExpandLigatures(t *testing.T) {
 	long := strings.Repeat("word ", 40)
+	ffi := string(rune(0xFB03)) // the ligature ffi
 	for _, data := range []string{
-		"From: a\nX-Note: oﬃce " + long + "\n\nbody\n",
-		"From x\nFrom: a\nX-Note: oﬃce\n\nbody\n",
+		"From: a\nX-Note: o" + ffi + "ce " + long + "\n\nbody\n",
+		"From x\nFrom: a\nX-Note: o" + ffi + "ce\n\nbody\n",
 	} {
 		doc := extract(t, data, nil)
 		found := false
