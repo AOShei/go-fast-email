@@ -210,7 +210,7 @@ func TestExternalBody(t *testing.T) {
 }
 
 func TestCharsets(t *testing.T) {
-	msg := "From: a@example.com\nSubject: =?koi8-r?b?wcI=?=\nContent-Type: text/plain; charset=shift_jis\n\nab\x82\xa0c"
+	msg := "From: a@example.com\nSubject: =?koi8-r?b?wcI=?=\nContent-Type: text/plain; charset=euc-jp\n\nab\x82\xa0c"
 	doc := extract(t, msg, nil)
 	p := &doc.Parts[0]
 	if p.Blocks[0].Text != "��" || p.Blocks[2].Text != "ab��c" {
@@ -222,7 +222,7 @@ func TestCharsets(t *testing.T) {
 			msgs = append(msgs, w.Message)
 		}
 	}
-	if len(msgs) != 2 || !strings.Contains(msgs[0], "koi8-r") || !strings.Contains(msgs[1], "shift_jis") {
+	if len(msgs) != 2 || !strings.Contains(msgs[0], "koi8-r") || !strings.Contains(msgs[1], "euc-jp") {
 		t.Errorf("warnings %q", msgs)
 	}
 }

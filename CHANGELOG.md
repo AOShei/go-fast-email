@@ -2,6 +2,18 @@
 
 Not yet tagged.
 
+## Unreleased: double-byte character sets (branch dbcs)
+
+- `internal/charset` decodes Shift_JIS (cp932), GBK/GB2312 (cp936),
+  EUC-KR (cp949) and Big5 (cp950) under their WHATWG labels and `cpNNN`,
+  in headers, encoded words, text/plain bodies and `.msg`/TNEF 8-bit
+  strings. The decoder and the tables (`internal/charset/tables/cp9NN.txt`,
+  identical to go-fast-html's) are copied from go-fast-html `be5c679`.
+  `tika-testMSG_chinese.msg` (code page 950) now reads `張毓倫` and
+  `格式測試` where it gave U+FFFD. GB18030, ISO-2022-JP, EUC-JP and KOI8
+  remain undecoded.
+- `TestCharsets` uses `euc-jp`, not `shift_jis`, as its undecoded set.
+
 ## Unreleased: the command against real mail
 
 - A `.msg` body's code page (`PR_INTERNET_CPID`, `PR_MESSAGE_CODEPAGE`) is

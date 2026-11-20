@@ -73,7 +73,8 @@ no `HiddenChecked`, no hidden warnings. See
 | 10. command flags | `-furniture`, `-stored`, `-exclude-display` added beside `-part-markers`, as `COMMAND_FLAGS.md` (decided 2026-11-20); `TestDisplayFlag`, `TestRenderFlags` | done |
 | 11. children | core 787b056 (`RenderOptions.Children`); command dispatcher reads HTML/XHTML/Markdown/plain text with go-fast-html fc557a8 (a text part's MIME charset passed as `Extractor.Charset`) and RTF with go-fast-rtf b756076; `-children` (default true); imports test allows them in `cmd/` only; `TestBodiesReadAsChildren`, `TestChildrenFlag` | done |
 | realworld-1 | command over the dev corpus (121 files, text and JSON): attachments of type octet-stream or none read by extension; `.msg` 8-bit strings that are not UTF-8 under a UTF-8 `PR_INTERNET_CPID` read in the locale's ANSI code page; no unmapped-glyphs warning for all-ASCII text in an undecoded set; `TestCommandCorpus` | done |
-| 12. next | see below | todo |
+| 12. double-byte sets | Shift_JIS, GBK/GB2312, EUC-KR, Big5 decoded everywhere this library decodes (decoder and tables from go-fast-html `be5c679`); `FuzzDecodeDBCS` | done |
+| 13. next | see below | todo |
 
 ## Next (in order)
 
