@@ -45,6 +45,38 @@ func main() {
 // The extensions of the files this command picks out of a directory.
 var extensions = map[string]bool{".eml": true, ".mbox": true, ".mbx": true, ".msg": true}
 
+// displayFlag is -exclude-display: given alone it stands for every
+// reason, and with a value for the reasons named.
+type displayFlag struct{ reasons gofastcore.Display }
+
+func (h *displayFlag) IsBoolFlag() bool { return true }
+func (h *displayFlag) String() string {
+	if h.reasons == 0 {
+		return ""
+	}
+	return h.reasons.String()
+}
+
+func (h *displayFlag) Set(v string) error {
+	switch v {
+	case "true", "all":
+		h.reasons = gofastcore.DisplayAny
+		return nil
+	case "false", "":
+		h.reasons = 0
+		return nil
+	}
+	var reasons gofastcore.Display
+	if err := reasons.UnmarshalText([]byte(strings.ReplaceAll(v, ",", "+"))); err != nil {
+		return err
+	}
+	if !reasons.Valid() || reasons == 0 || reasons&gofastcore.DisplayUnknown != 0 {
+		return fmt.Errorf("unknown reason in %q; the reasons are %s", v, strings.ReplaceAll((gofastcore.DisplayAny&^gofastcore.DisplayUnknown).String(), "+", ", "))
+	}
+	h.reasons = reasons
+	return nil
+}
+
 // run is the command: it reads args and writes documents to stdout and
 // messages to stderr, and returns the exit status.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -60,8 +92,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		maxMessage = flags.Int64("max-message-bytes", 0, "bytes of one message held in memory (0: the default, 256 MiB; -1: no limit)")
 		quiet      = flags.Bool("quiet", false, "say nothing about files that were read; failures are still reported")
 		version    = flags.Bool("version", false, "print the version and exit")
-		markers    = flags.Bool("part-markers", false, "in Markdown and text, mark where each message begins")
+		furniture  = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
+		stored     = flags.Bool("stored", false, "in Markdown and text, include the stored part (data the file keeps but shows nowhere)")
+		markers    = flags.Bool("part-markers", false, "in Markdown and text, put a line before each part saying which part it is (here, each message)")
 	)
+	var exclude displayFlag
+	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares not displayed: all of it, or with =reasons only those reasons (hidden, no_ink); JSON always has everything")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: gofastemail [flags] file-or-directory...")
 		fmt.Fprintln(stderr, "Extracts .eml, .mbox and .msg files, and winmail.dat files named on the command line. A directory stands for the email files in it and below it.")
@@ -157,7 +193,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	w := bufio.NewWriter(out)
 	defer w.Flush()
-	render := &gofastcore.RenderOptions{PartMarkers: *markers}
+	// The same options render every document this command prints.
+	render := &gofastcore.RenderOptions{
+		Furniture:      *furniture,
+		Stored:         *stored,
+		PartMarkers:    *markers,
+		ExcludeDisplay: exclude.reasons,
+	}
 
 	written := 0
 	for _, path := range inputs {
