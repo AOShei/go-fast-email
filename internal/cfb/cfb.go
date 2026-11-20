@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"unicode/utf16"
 )
 
@@ -76,6 +77,8 @@ type File struct {
 	entries    []entry
 	miniCutoff int64
 	mini       *Stream // the stream that holds the short streams
+	indexOnce  sync.Once
+	index      map[int]map[string]int // the children of each storage, by lowercase name
 	// Damaged is set, to what was wrong, when the short streams could not
 	// be read: the file is read without them.
 	Damaged string
@@ -344,26 +347,53 @@ func (s *Stream) ReadAt(p []byte, off int64) (int, error) {
 // entry with the given index. Names are compared without regard to case,
 // as the format has it. The children are a tree; a tree that loops is
 // walked for no more steps than there are entries.
+//
+// The children of every storage are indexed by name once, on the first
+// lookup, so that a file with many storages is not walked whole for each
+// lookup (10,000 recipients took seconds). Each entry is indexed under
+// the first storage it is reached from, in the order a walk from the root
+// reaches it; a well-formed file has one storage for each entry.
 func (f *File) find(parent int, name string) (int, bool) {
-	steps := 0
-	var walk func(i uint32) (int, bool)
-	walk = func(i uint32) (int, bool) {
-		if i == noStream || int64(i) >= int64(len(f.entries)) {
-			return 0, false
+	f.indexOnce.Do(f.buildIndex)
+	i, ok := f.index[parent][strings.ToLower(name)]
+	return i, ok
+}
+
+// buildIndex indexes the children of every storage reached from the
+// root, visiting each entry at most once, without recursion.
+func (f *File) buildIndex() {
+	f.index = map[int]map[string]int{}
+	seen := make([]bool, len(f.entries))
+	seen[0] = true
+	storages := []int{0}
+	for len(storages) > 0 {
+		parent := storages[len(storages)-1]
+		storages = storages[:len(storages)-1]
+		names := map[string]int{}
+		f.index[parent] = names
+		// Pre-order over the tree of the storage's children: an entry,
+		// then its left, then its right.
+		stack := []uint32{f.entries[parent].child}
+		for len(stack) > 0 {
+			i := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			if i == noStream || int64(i) >= int64(len(f.entries)) || seen[i] {
+				continue
+			}
+			seen[i] = true
+			e := &f.entries[i]
+			if e.kind == kindStorage || e.kind == kindStream {
+				key := strings.ToLower(e.name)
+				if _, dup := names[key]; !dup {
+					names[key] = int(i)
+				}
+				if e.kind == kindStorage {
+					storages = append(storages, int(i))
+				}
+			}
+			stack = append(stack, e.right, e.left)
 		}
-		if steps++; steps > len(f.entries) {
-			return 0, false
-		}
-		e := &f.entries[i]
-		if (e.kind == kindStorage || e.kind == kindStream) && strings.EqualFold(e.name, name) {
-			return int(i), true
-		}
-		if found, ok := walk(e.left); ok {
-			return found, true
-		}
-		return walk(e.right)
 	}
-	return walk(f.entries[parent].child)
 }
 
 // Has reports whether the file has a stream or storage at the given path

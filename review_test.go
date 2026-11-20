@@ -110,6 +110,25 @@ func TestUnendedEncodedWords(t *testing.T) {
 	}
 }
 
+// Many recipients: finding each one's properties must not walk every
+// entry of the directory each time.
+func TestMsgManyRecipients(t *testing.T) {
+	m := msgtest.Msg{Props: []msgtest.Prop{{ID: 0x0037, Value: "Subject"}}}
+	for range 10_000 {
+		m.Recipients = append(m.Recipients, []msgtest.Prop{{ID: 0x3001, Value: "r"}})
+	}
+	data := msgtest.Build(m)
+	start := time.Now()
+	doc, err := gofastemail.Extract(context.Background(), bytes.NewReader(data), int64(len(data)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkDoc(t, doc)
+	if d := time.Since(start); d > 2*time.Second {
+		t.Errorf("%v for %d recipients in %d KiB", d, len(m.Recipients), len(data)>>10)
+	}
+}
+
 // A mailbox of many tiny messages: looking at each message's header for a
 // Content-Length must cost about the header, not a fixed 64 KiB.
 func TestMboxTinyMessages(t *testing.T) {
