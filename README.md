@@ -66,9 +66,7 @@ its place in the file. A part's `Name` is the subject. Its blocks are:
    in `Document.Children` of every document that came from this message,
    which is how the children of a mailbox's messages are told apart.
 3. In a mailbox only: a `note` with `Attrs["type"] = "headers"` holding
-   every other header (and the `From ` line), not flagged.
-   In any message, a header out of proportion (see Hidden content) is a
-   `note` of its own, flagged.
+   every other header (and the `From ` line).
 4. The body.
 
 For a single message (`.eml`, `.msg`), `Metadata` has the subject as
@@ -97,7 +95,8 @@ holds the transport headers Outlook keeps, `message-class` and
 - **image/\*** parts a mail program shows in the message (not
   `Content-Disposition: attachment`, and not inside an alternative that
   does not give the blocks), and Outlook attachments of an image type
-  marked hidden (pictures shown in the body), are `image` blocks at their
+  left out of the attachment list (`PR_ATTACHMENT_HIDDEN`: pictures shown
+  in the body), are `image` blocks at their
   place, unless `Options.Images` is `ImagesNone`. The block's text is the
   `Content-Description`, `Attrs["name"]` the file name, `Image.ID`
   `sha256-` and 24 hex digits of the bytes' SHA-256, the pixel size read
@@ -134,72 +133,52 @@ valid UTF-8 is read as UTF-8. Every other character set is not guessed at:
 bytes outside ASCII become U+FFFD and the part has a `text.unmapped_glyphs`
 warning that names the set. The tables' sources are in [`NOTICE`](NOTICE).
 
-## Hidden content
+## What the file declares
 
-The hidden flag is a signal of suspicious hiding, as go-fast-core defines
-it ("What earns a flag"): data every message keeps and no mail program
-shows is extracted and bounded, and not flagged, since a flag on it would
-be set on clean and poisoned mail alike. Such data is flagged only where
-one item is out of proportion for its kind, by go-fast-core's shared rule
-`gofastcore.UnshownOutlier`: more than 30 words or more than 300
-characters other than white space (so text without spaces, Chinese or
-Japanese, and encoded payloads such as base64 count by their length).
-The item is then a `note` flagged `invisible`, and the part has core's
-`text.unshown_outlier` warning naming what was found.
+The go-fast libraries report what a file declares about the display of
+its content (`Display`: `hidden`, `no_ink`); they do not judge whether
+text is visible or harmful, and the absence of a reason says nothing
+about either. Threat detection is outside these libraries.
 
-Exceptions, so that ordinary delivered mail trips nothing:
+**This library reports no display reason.** Email declares none of its
+own:
 
-- **Machine headers.** Signature, trace and filter headers are long by
-  nature: `DKIM-Signature` and `ARC-Message-Signature` carry a signature
-  of about 350 characters, Exchange's `X-Microsoft-Antispam-Message-Info`
-  and `X-MS-Exchange-AntiSpam-MessageData-0` are kilobytes of base64, a
-  Postfix `Received` header's TLS comment is 20 words. For these the rule
-  is applied to each comment in parentheses and to the rest separately,
-  with machine tokens left out: a token of more than 40 bytes, or one that
-  holds `=`, `@`, `;`, `:` or `/`. Prose in them still counts by words and
-  characters. The headers, by name: `Received`, `X-Received`,
-  `Received-SPF`, `DKIM-Signature`, `DomainKey-Signature`, `ARC-Seal`,
-  `ARC-Message-Signature`, `ARC-Authentication-Results`,
-  `Authentication-Results` (and `-Original`), `References`,
-  `In-Reply-To`, `Autocrypt`, `List-Unsubscribe`, `msip_labels`,
-  `Thread-Index`, `X-Instance-Identity`, `X-ASF-DKIM-Sig`,
-  `X-Authority-Analysis`, `X-SG-EID`, `X-SG-ID`, `X-CMAE-Envelope`; and
-  by vendor prefix: `X-MS-`, `X-Microsoft-`, `X-Forefront-`,
-  `X-Exchange-` (Microsoft), `X-Gm-`, `X-Google-` (Gmail), `X-Spam-`
-  (SpamAssassin and other filters), `X-Proofpoint-`, `X-IronPort-`,
-  `X-Barracuda-`, `X-Mimecast-`, `X-YMail-`, `X-Yahoo-`, `X-QQ-`. Any
-  other header, an unknown `X-` header included, is held to the full rule.
-- **Preamble and epilogue.** Links, addresses and rules of punctuation
-  are left out first, so the footer a mailing list appends after the
-  closing boundary of a signed message is routine. An encoded payload
-  there still counts by its length.
+- Headers a mail program does not show (`X-*`, `Received`, `Reply-To`,
+  `Message-ID`, the MIME headers, Outlook's transport headers), the MIME
+  preamble and the epilogue are not unshown content: they keep their
+  provenance. Headers are in `Metadata.Extra` (a single message) or a
+  `note` of type `headers` (a mailbox); the preamble and epilogue are
+  `note`s of type `mime_preamble` and `mime_epilogue`. Whatever their
+  length or content.
+- A text/plain body declares nothing about display.
+- HTML and RTF bodies, and every attachment, go to `ExtractChild`; their
+  extractor reports what their format declares.
+- `PR_ATTACHMENT_HIDDEN` (Outlook, TNEF) sets no reason: it leaves an
+  attachment out of the attachment list, usually a picture shown in the
+  body. The attachment is extracted, and not named on the `Attachments:`
+  line.
+- An alternative body that is not the text/plain one is an embedded
+  document; `email.alternatives` on the part says the message has
+  alternatives, since a mail program may show the other one.
 
-| What | How it is extracted | Flagged |
-|---|---|---|
-| Headers a mail program does not show (`X-*`, `Received`, `Reply-To`, `Message-ID`, the MIME headers, Outlook's transport headers) | Single message: `Metadata.Extra`. Mailbox: a `note` of type `headers` | No. An outlier header: also a `note` of its own, `invisible`, and `text.unshown_outlier` |
-| The preamble and epilogue of a multipart body ("This is a multi-part message in MIME format.") | `note` of type `mime_preamble` / `mime_epilogue` | No. An outlier: `invisible`, and `text.unshown_outlier` |
-| An alternative body that is not the text/plain one | an embedded document, and `email.alternatives` on the part | No (its own extractor flags what it hides) |
-| An Outlook attachment marked hidden (`PR_ATTACHMENT_HIDDEN`) | extracted as an embedded document, not named in the `Attachments:` line | No |
-| Invisible characters anywhere in block text | as text | `invisible_chars` (core's scan); in metadata, a document-level `text.hidden` |
-
-`HiddenChecked` is `invisible+invisible_chars`. The `invisible` check is
-the outlier rule above over all unshown data of the message format; whatever is hidden inside
-an HTML or RTF body (`display:none`, white text) is for that body's
-extractor to flag. A mail program that shows the HTML alternative shows
-none of the text/plain blocks; that is reported by `email.alternatives`,
-not by a flag.
+Colour, size, position, overlap and the length of unshown data are not
+judged. Characters are kept as they are, within core's text conventions:
+zero-width characters, Unicode tag characters, bidirectional controls and
+variation selectors are in the text of headers, metadata, notes and
+bodies unchanged.
 
 ## Warnings
+
+Warnings state facts about extraction (damage, limits, unsupported
+features); none is about unshown content.
 
 | Code | When |
 |---|---|
 | `email.alternatives` (warning) | The message has alternative bodies |
-| `text.unshown_outlier` (warning, core's) | A header, preamble or epilogue that no mail program shows is out of proportion by core's rule (see Hidden content); it is a note flagged `invisible` |
 | `email.unknown_transfer_encoding` (warning) | A part declares a transfer encoding other than base64, quoted-printable, 7bit, 8bit or binary; its bytes are taken as they are |
 | `text.unmapped_glyphs` | A character set not decoded, or bytes not valid in the one declared |
 | `input.repaired` | A header section ended by a line that is not a header; a multipart body without closing boundary or without any boundary; base64 with characters outside its alphabet; an unreadable compressed RTF body; a damaged TNEF stream (cut short, a wrong checksum, an unreadable property list); an Outlook compound file whose short streams cannot be read (the properties in them are missing; severity error) |
 | `input.external_reference` | An Outlook attachment by reference names a file outside the message; a `message/external-body` part names content elsewhere (its URL or file is in the message; nothing is fetched) |
-| `text.hidden` | See above |
 | `limit.exceeded` (error) | Any limit below |
 | `part.no_text` | A message with no text at all |
 

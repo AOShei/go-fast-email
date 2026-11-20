@@ -2,7 +2,16 @@
 
 Module `github.com/AOShei/go-fast-email`, package `gofastemail`. Extracts
 `.eml`, `.mbox` and Outlook `.msg` into `gofastcore.Document` (core pinned at
-commit 031432a). Standard library and go-fast modules only.
+commit 05bbddb, schema 0.2). Standard library and go-fast modules only.
+
+**Display (declared, not judged; Andrew, 2026-11-20, supersedes runs 3 and
+4).** The library reports only what a file declares about display, and
+email declares nothing of its own: no `Display` reason anywhere in this
+library's output. Headers, preamble and epilogue keep their provenance;
+HTML/RTF bodies' extractors report their own format's declarations.
+`PR_ATTACHMENT_HIDDEN` sets no reason. No outlier rule, no header lists,
+no `HiddenChecked`, no hidden warnings. See
+`../HANDOFF_DECLARED_NOT_JUDGED.md` and `../DECLARED_REPORT_EMAIL.md`.
 
 ## Mapping (decided in run 1)
 
@@ -18,11 +27,7 @@ commit 031432a). Standard library and go-fast modules only.
   list).
 - Every other header (X-*, Received, Reply-To, Message-ID, MIME headers, the
   mbox `From ` line) is, in a mailbox, a `note` block with
-  `Attrs["type"]="headers"`, not flagged (run 3, user decision of
-  2026-11-20: routine unshown data is not a signal). A header that is an
-  outlier by core's `gofastcore.UnshownOutlier` (run 4: > 30 words or
-  > 300 characters; machine headers exempted by name, see README) is a note
-  of its own, flagged `invisible`, with `text.unshown_outlier`.
+  `Attrs["type"]="headers"`, with no display reason.
 - For a single message, all headers are also in `Metadata.Extra` (lowercase
   names, repeated headers joined with `\n`); `Title` is the subject, `Authors`
   the From header verbatim, `Created` the Date.
@@ -34,9 +39,7 @@ commit 031432a). Standard library and go-fast modules only.
 - multipart/alternative: the first text/plain alternative gives the blocks;
   the others are children; warning `email.alternatives` (severity warning).
 - MIME preamble and epilogue text (never shown) is a `note` block of type
-  `mime_preamble` / `mime_epilogue`, not flagged unless an outlier by core's
-  rule once links and rules are left out (then `invisible` and
-  `text.unshown_outlier`).
+  `mime_preamble` / `mime_epilogue`, with no display reason.
 
 - For a single message (.eml, .msg) the headers that are not shown go to
   `Metadata.Extra` only (no block). In an mbox they are the `note` block above,
@@ -59,11 +62,13 @@ commit 031432a). Standard library and go-fast modules only.
 | 2. mbox | separator scan (`From ` after a blank line), mboxrd unquoting, Content-Length (mboxcl2), part range, MaxParts, tests, fuzz | done |
 | 3. msg | cfb copied from go-fast-ooxml; property streams; recipients; attachments by value, embedded messages, OLE listed; PR_RTF_COMPRESSED (MS-OXRTFCP) to `application/rtf` child; PR_HTML child; tests, fuzz | done (named properties `__nameid_version1.0` and multi-valued properties not read; RTF CRC not checked) |
 | 4. cmd | `cmd/gofastemail` printing JSON/Markdown/text like gofastooxml | done |
-| 5. README | what is read, mapping, warnings, hidden reasons, limits, what is not read | done |
+| 5. README | what is read, mapping, warnings, what the file declares, limits, what is not read | done |
 | 6. run 2 | image blocks for pictures shown in a message; TNEF (winmail.dat) read as an embedded document of format `tnef` (internal/tnef); `input.external_reference` for message/external-body; base64 without a copy of the input; imports, source-hygiene and API-snapshot tests | done |
-| 7. run 3: hidden signal | core pinned at 4de43b1; routine unshown data (headers, preamble, epilogue) unflagged; outliers (> 30 prose words) flagged with `email.unshown_outlier`; clean-message and outlier tests | done |
-| 8. run 4: core outlier rule, corpus | core pinned at 17a0e50; `gofastcore.UnshownOutlier` and `text.unshown_outlier` replace the library's own; machine headers exempted by name; `corpus_test.go` over dev/heldout eml, mbox, msg; compound files with damaged short streams read with `input.repaired` | done |
-| 9. next | see below | todo |
+| 7. run 3: hidden signal | outlier flagging of unshown data (superseded by 9) | removed |
+| 8. run 4: core outlier rule, corpus | core's outlier rule and machine-header exemptions (superseded by 9); `corpus_test.go` over dev/heldout eml, mbox, msg; compound files with damaged short streams read with `input.repaired` (kept) | partly removed |
+| review-1 | independent review: decode budget for every property read, header joins, encoded-word search bound, mbox Content-Length scan, cfb child index, ligatures in header notes | done |
+| 9. declared, not judged | core 05bbddb (schema 0.2); no display reason; outlier rule, header lists, token stripping, `HiddenChecked`, metadata scan, `-exclude-hidden` removed; R6 test; corpus fails on any reason; `BenchmarkExtract` | done |
+| 10. next | see below | todo |
 
 ## Next (in order)
 
