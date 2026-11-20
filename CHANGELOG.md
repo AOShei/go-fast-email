@@ -7,11 +7,14 @@ Not yet tagged.
 - go-fast-core pinned at `787b056` (`RenderOptions.Children`).
 - `cmd/gofastemail` reads HTML and RTF bodies and attachments: its
   dispatcher hands `text/html` and `application/xhtml+xml` to go-fast-html
-  (`df14878`, format `html`), `text/markdown` and `text/plain` to it as
+  (`fc557a8`, format `html`), `text/markdown` and `text/plain` to it as
   `md` and `txt`, and `application/rtf` and `text/rtf` to go-fast-rtf
   (`b756076`). Attached messages still go to this library; everything
   else is listed. The library package imports neither; the imports test
   allows them in `cmd/` only.
+- A text part's MIME `charset` (or a `.msg` body's `PR_INTERNET_CPID`)
+  is passed to go-fast-html as `Extractor.Charset`, so an HTML body in
+  windows-1251, Shift_JIS and the like is decoded without a `<meta>`.
 - New flag `-children` (default true): Markdown and text include each
   embedded document after a line naming it; `-children=false` leaves them
   out. Previously the command printed the top-level document only.

@@ -3,7 +3,7 @@
 Module `github.com/AOShei/go-fast-email`, package `gofastemail`. Extracts
 `.eml`, `.mbox` and Outlook `.msg` into `gofastcore.Document` (core pinned at
 commit 787b056, schema 0.2). The library: standard library and go-fast-core
-only. The command also imports go-fast-html (df14878) and go-fast-rtf
+only. The command also imports go-fast-html (fc557a8) and go-fast-rtf
 (b756076), to read HTML and RTF bodies and attachments as children.
 
 **Display (declared, not judged; Andrew, 2026-11-20, supersedes runs 3 and
@@ -71,7 +71,7 @@ no `HiddenChecked`, no hidden warnings. See
 | review-1 | independent review: decode budget for every property read, header joins, encoded-word search bound, mbox Content-Length scan, cfb child index, ligatures in header notes | done |
 | 9. declared, not judged | core 05bbddb (schema 0.2); no display reason; outlier rule, header lists, token stripping, `HiddenChecked`, metadata scan, `-exclude-hidden` removed; R6 test; corpus fails on any reason; `BenchmarkExtract` | done |
 | 10. command flags | `-furniture`, `-stored`, `-exclude-display` added beside `-part-markers`, as `COMMAND_FLAGS.md` (decided 2026-11-20); `TestDisplayFlag`, `TestRenderFlags` | done |
-| 11. children | core 787b056 (`RenderOptions.Children`); command dispatcher reads HTML/XHTML/Markdown/plain text with go-fast-html df14878 and RTF with go-fast-rtf b756076; `-children` (default true); imports test allows them in `cmd/` only; `TestBodiesReadAsChildren`, `TestChildrenFlag` | done |
+| 11. children | core 787b056 (`RenderOptions.Children`); command dispatcher reads HTML/XHTML/Markdown/plain text with go-fast-html fc557a8; a text part's MIME charset passed as `Extractor.Charset` and RTF with go-fast-rtf b756076; `-children` (default true); imports test allows them in `cmd/` only; `TestBodiesReadAsChildren`, `TestChildrenFlag` | done |
 | 12. next | see below | todo |
 
 ## Next (in order)
