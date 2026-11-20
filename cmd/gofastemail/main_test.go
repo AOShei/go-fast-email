@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/AOShei/go-fast-core"
+	"github.com/AOShei/go-fast-email"
 	"github.com/AOShei/go-fast-email/internal/msgtest"
 )
 
@@ -224,6 +226,34 @@ func TestChildrenFlag(t *testing.T) {
 	}
 	if text := runText(t, html, "-format", "markdown"); !strings.Contains(text, "Only HTML.") || !strings.Contains(text, "<!-- child 1") {
 		t.Errorf("markdown:\n%s", text)
+	}
+}
+
+// An attachment declared application/octet-stream (or with no type), as
+// Outlook stores many (POI's attachment_test_msg.msg: pj1.txt;
+// lots-of-recipients.msg: an attached .eml), is read by the extractor its
+// file name's extension stands for; other types are not second-guessed.
+func TestDispatcherByExtension(t *testing.T) {
+	child := dispatcher(&gofastemail.Extractor{})
+	for _, c := range []struct{ name, mime, body, format string }{
+		{"pj1.txt", "application/octet-stream", "Plain text.", "txt"},
+		{"Fwd_ Note.EML", "application/octet-stream", "Subject: inner\n\nInner body.\n", "eml"},
+		{"page.htm", "", "<p>Page</p>", "html"},
+		{"notes.rtf", "application/octet-stream", "{\\rtf1 Notes}", "rtf"},
+	} {
+		doc, err := child(context.Background(), c.name, c.mime, strings.NewReader(c.body), int64(len(c.body)), &gofastcore.Options{})
+		if err != nil {
+			t.Errorf("%s: %v", c.name, err)
+			continue
+		}
+		if doc.Source.Format != c.format {
+			t.Errorf("%s: format %q, want %q", c.name, doc.Source.Format, c.format)
+		}
+	}
+	for _, c := range []struct{ name, mime string }{{"x.bin", "application/octet-stream"}, {"x.txt", "application/pdf"}} {
+		if _, err := child(context.Background(), c.name, c.mime, strings.NewReader("x"), 1, &gofastcore.Options{}); !errors.Is(err, gofastcore.ErrUnsupported) {
+			t.Errorf("%s %s: %v", c.name, c.mime, err)
+		}
 	}
 }
 
