@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf16"
 
 	"github.com/AOShei/go-fast-core"
@@ -94,6 +95,17 @@ func TestRepeatedHeaderIsLinear(t *testing.T) {
 	}
 	if n := strings.Count(doc.Metadata.Extra["x-a"], "\n"); n != 8_999 {
 		t.Errorf("%d values joined", n+1)
+	}
+}
+
+// Encoded words that never end: each start of one must not search the
+// whole rest of the header for its end.
+func TestUnendedEncodedWords(t *testing.T) {
+	data := "From: a\nSubject: " + strings.Repeat("=?a?q?b ", 120_000) + "\n\nbody\n"
+	start := time.Now()
+	extract(t, data, nil)
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("%v for a header of %d KiB", d, len(data)>>10)
 	}
 }
 

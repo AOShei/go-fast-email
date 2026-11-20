@@ -87,7 +87,9 @@ func encodedWord(s string, report CharsetFunc) (string, string, bool) {
 	}
 	label, enc := body[:q1], body[q1+1]
 	text := body[q1+3:]
-	end := strings.Index(text, "?=")
+	// The end is looked for no further than a word may be long, so that
+	// words that never end do not each search the rest of the text.
+	end := strings.Index(text[:min(len(text), maxWord+2)], "?=")
 	if end < 0 || end > maxWord || strings.ContainsAny(text[:end], " \t\r\n") {
 		return "", "", false
 	}
