@@ -3,7 +3,7 @@
 Module `github.com/AOShei/go-fast-email`, package `gofastemail`. Extracts
 `.eml`, `.mbox` and Outlook `.msg` into `gofastcore.Document` (core pinned at
 commit 787b056, schema 0.2). The library: standard library and go-fast-core
-only. The command also imports go-fast-html (fc557a8) and go-fast-rtf
+only. The command also imports go-fast-html (be5c679) and go-fast-rtf
 (b756076), to read HTML and RTF bodies and attachments as children.
 
 **Display (declared, not judged; Andrew, 2026-11-20, supersedes runs 3 and

@@ -251,6 +251,29 @@ func codepageLabel(cp int32) string {
 		return "utf-16le"
 	case 1201:
 		return "utf-16be"
+	case 874, 1250, 1251, 1253, 1254, 1255, 1256, 1257, 1258:
+		return fmt.Sprintf("windows-%d", cp)
+	case 932:
+		return "shift_jis"
+	case 936:
+		return "gbk"
+	case 949:
+		return "euc-kr"
+	case 950:
+		return "big5"
+	case 54936:
+		return "gb18030"
+	case 20866:
+		return "koi8-r"
+	case 21866:
+		return "koi8-u"
+	case 51932:
+		return "euc-jp"
+	case 50220, 50221, 50222:
+		return "iso-2022-jp"
+	}
+	if cp >= 28592 && cp <= 28606 {
+		return fmt.Sprintf("iso-8859-%d", cp-28590)
 	}
 	return fmt.Sprintf("cp%d", cp)
 }

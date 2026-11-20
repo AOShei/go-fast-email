@@ -4,6 +4,11 @@ Not yet tagged.
 
 ## Unreleased: the command against real mail
 
+- A `.msg` body's code page (`PR_INTERNET_CPID`, `PR_MESSAGE_CODEPAGE`) is
+  passed on by its WHATWG label (`windows-1251`, `shift_jis`, `gbk`,
+  `euc-kr`, `big5`, `iso-8859-N`, ...), not as `cpNNN`, which
+  go-fast-html did not know. go-fast-html pinned at `be5c679`.
+
 - The command was run over the 121 dev files of the public corpus (eml,
   mbox, msg), text and JSON: every document validates, no child fails,
   the whole run takes well under a second.

@@ -163,6 +163,13 @@ func TestBodiesReadAsChildren(t *testing.T) {
 		// The charset only in the MIME header (or PR_INTERNET_CPID), none
 		// in the HTML: "\xcf\xf0\xe8\xe2\xe5\xf2" is windows-1251.
 		"cp1251.eml": []byte("From: a@example.com\nSubject: cp1251\nContent-Type: text/html; charset=windows-1251\n\n<p>\xcf\xf0\xe8\xe2\xe5\xf2</p>\n"),
+		// PR_INTERNET_CPID 950 must reach go-fast-html as a label it
+		// knows ("big5", not "cp950"): "\xa4\xa4\xa4\xe5" is Big5.
+		"big5.msg": msgtest.Build(msgtest.Msg{Props: []msgtest.Prop{
+			{ID: 0x0037, Value: "big5"},
+			{ID: 0x3FDE, Value: int32(950)},
+			{ID: 0x1013, Value: []byte("<p>\xa4\xa4\xa4\xe5</p>")},
+		}}),
 		"cp1251.msg": msgtest.Build(msgtest.Msg{Props: []msgtest.Prop{
 			{ID: 0x0037, Value: "cp1251"},
 			{ID: 0x3FDE, Value: int32(1251)},
@@ -177,6 +184,7 @@ func TestBodiesReadAsChildren(t *testing.T) {
 		"rtf.msg":    {"Outlook RTF body.", "[child 1"},
 		"cp1251.eml": {"\u041f\u0440\u0438\u0432\u0435\u0442"},
 		"cp1251.msg": {"\u041f\u0440\u0438\u0432\u0435\u0442"},
+		"big5.msg":   {"\u4e2d\u6587"},
 	}
 	for name, data := range files {
 		path := filepath.Join(dir, name)
