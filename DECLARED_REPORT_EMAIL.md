@@ -12,7 +12,7 @@ This file belongs at the workspace root as `DECLARED_REPORT_EMAIL.md`. Writing o
   - `de51105`: `go mod tidy`.
   - `b915a95`: README, plan and changelog.
   - The commit that adds this report.
-- **Core:** pins go-fast-core **`05bbddb`** (schema 0.2).
+- **Core:** pins go-fast-core **`05bbddb`** (schema 0.2); since moved to `787b056` for `RenderOptions.Children` (see the CHANGELOG).
 - **review-1:** I read the reviewer's eight commits (`c0eb83c`..`4a85cf7`) before starting and kept all their hostile-input fixes. One review test, `TestHeaderNotesExpandLigatures`, lost its outlier-note case, because that note no longer exists. Its mailbox-note case stays.
 
 ## 2. Declarations reported (as in the README)

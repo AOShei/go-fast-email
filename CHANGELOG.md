@@ -2,6 +2,20 @@
 
 Not yet tagged.
 
+## Unreleased: children in the command
+
+- go-fast-core pinned at `787b056` (`RenderOptions.Children`).
+- `cmd/gofastemail` reads HTML and RTF bodies and attachments: its
+  dispatcher hands `text/html` and `application/xhtml+xml` to go-fast-html
+  (`df14878`, format `html`), `text/markdown` and `text/plain` to it as
+  `md` and `txt`, and `application/rtf` and `text/rtf` to go-fast-rtf
+  (`b756076`). Attached messages still go to this library; everything
+  else is listed. The library package imports neither; the imports test
+  allows them in `cmd/` only.
+- New flag `-children` (default true): Markdown and text include each
+  embedded document after a line naming it; `-children=false` leaves them
+  out. Previously the command printed the top-level document only.
+
 ## Unreleased: command flags
 
 - `cmd/gofastemail` has the shared render flags of the go-fast commands

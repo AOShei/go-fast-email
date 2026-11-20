@@ -2,7 +2,8 @@
 
 Extracts email (`.eml`, `.mbox`, Outlook `.msg`) into the shared go-fast
 document model, [`gofastcore.Document`](https://github.com/AOShei/go-fast-core).
-Standard library and go-fast modules only.
+The library uses the standard library and go-fast-core only; its command
+also uses go-fast-html and go-fast-rtf.
 
 **Status: first version, not tagged.** The plan and what is left are in
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
@@ -50,7 +51,22 @@ that the depth limit and the budgets apply.
 go run ./cmd/gofastemail -format markdown message.eml
 ```
 
-It extracts attached messages and lists every other attachment.
+The library itself reads no HTML, RTF or other format of a body or
+attachment: a program passes its own `Options.Child`. The command passes
+one that reads, as children:
+
+| Media type | Read by |
+|---|---|
+| `message/rfc822`, `message/global`, `application/vnd.ms-outlook` | this library (attached messages) |
+| `text/html`, `application/xhtml+xml` | go-fast-html, format `html` |
+| `text/markdown` | go-fast-html, format `md` |
+| `text/plain` (alternatives and attachments) | go-fast-html, format `txt` |
+| `application/rtf`, `text/rtf` (including the decompressed RTF body of a `.msg`) | go-fast-rtf |
+
+Every other attachment is listed with its name and size
+(`child.unsupported`). Core's depth limit applies. Only `cmd/gofastemail`
+imports go-fast-html and go-fast-rtf; the library package imports core
+and the standard library only, and a test checks that.
 
 It has the render flags every go-fast command has. They change Markdown
 and text only; JSON always has everything.
@@ -61,11 +77,14 @@ and text only; JSON always has everything.
 | `-stored` | in Markdown and text, include the stored part (data the file keeps but shows nowhere) |
 | `-part-markers` | in Markdown and text, put a line before each part saying which part it is (here, each message) |
 | `-exclude-display[=reasons]` | in Markdown and text, leave out what the file declares not displayed: all of it (alone, `=true` or `=all`), or only the reasons named (`=hidden`, `=no_ink`, `=hidden,no_ink`); `=false` or `=` turns it off, and any other value is an error |
+| `-children` (default true) | in Markdown and text, include embedded documents (attachments, members), each after a line naming it; -children=false leaves them out |
 
 This library itself produces no running headers, stored part or display
-reason; the flags matter for documents that carry them. The command
-prints Markdown and text of the top-level document only; children
-(attached messages) appear in the JSON.
+reason; the flags matter for documents that carry them, such as an HTML
+body read by go-fast-html. With `-children`, core renders each child after
+the message's own parts, depth first, after a line naming it
+(`[child 1: report.rtf]` in text, `<!-- child 1: report.rtf -->` in
+Markdown); an HTML-only message's text is therefore in its child.
 
 ## How a message maps
 
