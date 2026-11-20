@@ -129,6 +129,28 @@ func TestMsgManyRecipients(t *testing.T) {
 	}
 }
 
+// The headers a mail program does not show are written with ligatures as
+// their letters too: in a mailbox's note of headers, and in the note of
+// an outlier header.
+func TestHeaderNotesExpandLigatures(t *testing.T) {
+	long := strings.Repeat("word ", 40)
+	for _, data := range []string{
+		"From: a\nX-Note: oﬃce " + long + "\n\nbody\n",
+		"From x\nFrom: a\nX-Note: oﬃce\n\nbody\n",
+	} {
+		doc := extract(t, data, nil)
+		found := false
+		for _, b := range doc.Parts[0].Blocks {
+			if strings.Contains(b.Text, "office") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%q: %q", data[:20], texts(&doc.Parts[0]))
+		}
+	}
+}
+
 // A mailbox of many tiny messages: looking at each message's header for a
 // Content-Length must cost about the header, not a fixed 64 KiB.
 func TestMboxTinyMessages(t *testing.T) {

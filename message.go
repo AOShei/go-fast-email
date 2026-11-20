@@ -388,13 +388,13 @@ func (r *reader) unshownHeaders(m *message, fields []headerField, all bool) {
 	var routine []string
 	for _, f := range fields {
 		if headerOutlier(f.name, f.value) {
-			r.outlier(m, &m.part.Blocks, NoteHeaders, strings.TrimSpace(f.line), fmt.Sprintf("the header %q, which a mail program does not show, holds more than %d words or %d characters",
+			r.outlier(m, &m.part.Blocks, NoteHeaders, gofastcore.ExpandLigatures(strings.TrimSpace(f.line)), fmt.Sprintf("the header %q, which a mail program does not show, holds more than %d words or %d characters",
 				clean.Cut(f.name, 64), gofastcore.UnshownOutlierWords, gofastcore.UnshownOutlierChars))
 		} else if all {
 			routine = append(routine, f.line)
 		}
 	}
-	if t := strings.TrimSpace(strings.Join(routine, "\n")); t != "" && r.take(m, gofastcore.BlockCost+len(t)) {
+	if t := gofastcore.ExpandLigatures(strings.TrimSpace(strings.Join(routine, "\n"))); t != "" && r.take(m, gofastcore.BlockCost+len(t)) {
 		m.part.Blocks = append(m.part.Blocks, gofastcore.Block{Kind: gofastcore.KindNote, Text: t,
 			Attrs: map[string]string{gofastcore.AttrNoteType: NoteHeaders}})
 	}
