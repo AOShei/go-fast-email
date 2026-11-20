@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -106,6 +107,29 @@ func TestUnendedEncodedWords(t *testing.T) {
 	extract(t, data, nil)
 	if d := time.Since(start); d > time.Second {
 		t.Errorf("%v for a header of %d KiB", d, len(data)>>10)
+	}
+}
+
+// A mailbox of many tiny messages: looking at each message's header for a
+// Content-Length must cost about the header, not a fixed 64 KiB.
+func TestMboxTinyMessages(t *testing.T) {
+	data := strings.Repeat("From x\nA: b\n\n", 400_000)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	doc := extract(t, data, &gofastcore.Options{Parts: gofastcore.PartRange{First: 400_000}})
+	runtime.ReadMemStats(&after)
+	if len(doc.Parts) != 1 {
+		t.Fatalf("%d parts", len(doc.Parts))
+	}
+	if got := after.TotalAlloc - before.TotalAlloc; got > 256<<20 {
+		t.Errorf("%d MiB allocated for a mailbox of %d KiB", got>>20, len(data)>>10)
+	}
+	// A header longer than the first look still gives its Content-Length.
+	body := "one\n\nFrom inside the body\n"
+	msg := "From a\nX-Long: " + strings.Repeat("x", 3000) + "\nContent-Length: " + strconv.Itoa(len(body)) + "\n\n" + body
+	doc = extract(t, msg+"\n"+msg, nil)
+	if len(doc.Parts) != 2 {
+		t.Errorf("%d parts", len(doc.Parts))
 	}
 }
 

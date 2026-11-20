@@ -190,10 +190,25 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 // points to is the end of the file or a "From " line after at most one
 // blank line.
 func countedEnd(src io.ReaderAt, size, start int64, maxHeader int) (int64, bool) {
-	head := make([]byte, min(int64(maxHeader), size-start, 64<<10))
-	n, _ := src.ReadAt(head, start)
-	head = head[:n]
-	h, bodyAt, p := rfc822.ParseHeader(head, len(head))
+	// The header is read a little at a time, growing until a blank line
+	// ends it within what was read: a mailbox of a million tiny messages
+	// must not cost a million times the largest header.
+	avail := min(int64(maxHeader), size-start, 64<<10)
+	var head []byte
+	var h rfc822.Header
+	var bodyAt int
+	var p rfc822.Problems
+	for want := min(avail, 256); ; want = min(avail, want*4) {
+		head = make([]byte, want)
+		n, _ := src.ReadAt(head, start)
+		head = head[:n]
+		h, bodyAt, p = rfc822.ParseHeader(head, len(head))
+		ended := bodyAt < len(head) && !p.Malformed || // a blank line ended it
+			p.Malformed && bytes.IndexByte(head[bodyAt:], '\n') >= 0 // a whole line that is no field
+		if ended || want >= avail || int64(n) < want {
+			break
+		}
+	}
 	if p.Truncated {
 		return 0, false
 	}
