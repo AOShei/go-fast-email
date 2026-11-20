@@ -208,7 +208,7 @@ not by a flag.
 | Limit | Default | What happens |
 |---|---|---|
 | `Limits.MaxInputBytes` | 16 GiB | `ErrLimitExceeded` |
-| `Limits.MaxDecodedBytes` | 2 GiB, shared with embedded documents | Later parts are listed, not read |
+| `Limits.MaxDecodedBytes` | 2 GiB, shared with embedded documents; in an Outlook message, every byte read from a property stream counts, since streams can share sectors | Later parts are listed, not read |
 | `Limits.MaxTextBytes` | core's 256 MiB, shared with embedded documents; each message of a mailbox takes `BlockCost` | The part is cut; later messages of a mailbox are not read |
 | `Limits.MaxParts` | 1,000,000 messages in a mailbox | The first are read |
 | `Limits.MaxDepth` | core's 4 | Deeper documents are listed |
