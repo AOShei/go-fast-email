@@ -91,3 +91,8 @@ I set no reason for either case below. Each is a fact the format states, but non
 3. **`PidTagAttachFlags` `attRenderedInBody` and `PidTagRenderingPosition`.** These state that an attachment is drawn in the body, at a position. They are about display, but not about content being switched off. Not read.
 
 There is no other .msg or TNEF property I know of that hides part of a body. Hidden recipients (Bcc) are a header and are extracted.
+
+## Follow-up decisions (2026-11-20)
+
+- **Shared render flags in the command** (`COMMAND_FLAGS.md`). `cmd/gofastemail` had only `-part-markers`; it now also has `-furniture`, `-stored` and `-exclude-display[=reasons]`, with the names, values and help text of `COMMAND_FLAGS.md`. `-exclude-display` is a copy of go-fast-html's `displayFlag`: alone, `=true` or `=all` mean every reason; `=false` or `=` mean off; `=hidden`, `=no_ink`, `=hidden,no_ink` (or `+`) name reasons; anything else, `unknown` included, is an error that lists the reasons. One `RenderOptions` renders every document the command prints. Tests: `TestDisplayFlag`, `TestRenderFlags`. Commit `ad7fb9a`; documentation (README, IMPLEMENTATION_PLAN, CHANGELOG) in `7e595d2`.
+- **Not changed, for Andrew:** the command renders Markdown and text of the top-level document only (core's `WriteMarkdown`/`WriteText` do not render `Children`), and its dispatcher extracts only attached messages. So in this command the new flags affect nothing that email itself produces; they will matter once children are rendered or a dispatcher for HTML/RTF/other formats is passed in.
