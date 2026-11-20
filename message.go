@@ -251,7 +251,7 @@ func (r *reader) unshownHeaders(m *message, fields []headerField, all bool) {
 	var routine []string
 	for _, f := range fields {
 		if n := proseWords(f.value); n > UnshownOutlierWords {
-			r.outlier(m, &m.part.Blocks, NoteHeaders,strings.TrimSpace(f.line), fmt.Sprintf("a header a mail program does not show holds %d words", n))
+			r.outlier(m, &m.part.Blocks, NoteHeaders, strings.TrimSpace(f.line), fmt.Sprintf("a header a mail program does not show holds %d words", n))
 		} else if all {
 			routine = append(routine, f.line)
 		}
