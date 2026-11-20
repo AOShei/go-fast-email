@@ -36,7 +36,8 @@ func TestMbox(t *testing.T) {
 		"paragraph: First body.\nFrom the start, quoted.",
 		"quote: From twice.", // ">>From" unquoted to ">From", a quoted line
 	})
-	if h := doc.Parts[0].Blocks[2].Hidden; h != gofastcore.HiddenInvisible {
+	// Headers are routine: a note, not flagged.
+	if h := doc.Parts[0].Blocks[2].Hidden; h != 0 || doc.Parts[0].Blocks[2].Attrs["type"] != "headers" || doc.Parts[0].Has(gofastcore.WarnTextHidden) {
 		t.Errorf("headers note hidden %v", h)
 	}
 	equal(t, "message 2", texts(&doc.Parts[1])[3:], []string{"paragraph: Second body."})

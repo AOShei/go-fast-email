@@ -14,6 +14,7 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/AOShei/go-fast-core"
 	"github.com/AOShei/go-fast-email/internal/charset"
@@ -219,26 +220,83 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 				md.Extra[f.key] = f.value
 			}
 		}
-	} else {
-		// In a mailbox the metadata is the file's, so the headers that
-		// are not shown are a block of the message's part.
-		var hidden []string
-		if envelope != "" {
-			hidden = append(hidden, "From "+envelope)
-		}
-		for _, f := range fields {
-			if !isShown(f.key) {
-				hidden = append(hidden, f.name+": "+f.value)
-			}
-		}
-		if t := strings.TrimSpace(strings.Join(hidden, "\n")); t != "" && r.take(m, gofastcore.BlockCost+len(t)) {
-			m.part.Blocks = append(m.part.Blocks, gofastcore.Block{Kind: gofastcore.KindNote, Text: t, Hidden: gofastcore.HiddenInvisible,
-				Attrs: map[string]string{gofastcore.AttrNoteType: NoteHeaders}})
+	}
+	var unshown []headerField
+	if envelope != "" {
+		unshown = append(unshown, headerField{"From " + envelope, envelope})
+	}
+	for _, f := range fields {
+		if !isShown(f.key) {
+			unshown = append(unshown, headerField{f.name + ": " + f.value, f.value})
 		}
 	}
+	// In a mailbox the metadata is the file's, so the headers that are
+	// not shown are a note of the message's part.
+	r.unshownHeaders(m, unshown, !m.inline)
 
 	r.entity(m, h, raw[bodyAt:], 0, false, "text/plain")
 	r.tail(m, headersAt)
+}
+
+// headerField is a header a mail program does not show: the line as
+// written in a note ("Name: value") and its value.
+type headerField struct{ line, value string }
+
+// unshownHeaders adds the headers a mail program does not show. Those are
+// routine (every message has them) and are not flagged: with all set (a
+// mailbox, whose metadata is the file's) they are a note. A header whose
+// value is out of proportion (more than UnshownOutlierWords words) is a
+// note of its own in any case, flagged invisible, with a warning.
+func (r *reader) unshownHeaders(m *message, fields []headerField, all bool) {
+	var routine []string
+	for _, f := range fields {
+		if n := proseWords(f.value); n > UnshownOutlierWords {
+			r.outlier(m, &m.part.Blocks, NoteHeaders,strings.TrimSpace(f.line), fmt.Sprintf("a header a mail program does not show holds %d words", n))
+		} else if all {
+			routine = append(routine, f.line)
+		}
+	}
+	if t := strings.TrimSpace(strings.Join(routine, "\n")); t != "" && r.take(m, gofastcore.BlockCost+len(t)) {
+		m.part.Blocks = append(m.part.Blocks, gofastcore.Block{Kind: gofastcore.KindNote, Text: t,
+			Attrs: map[string]string{gofastcore.AttrNoteType: NoteHeaders}})
+	}
+}
+
+// outlier adds a note of unshown data that is out of proportion for its
+// kind, flagged invisible, and the warning that says so.
+func (r *reader) outlier(m *message, to *[]gofastcore.Block, kind, text, what string) {
+	m.warn(gofastcore.SeverityWarning, WarnUnshownOutlier, what)
+	if text == "" || !r.take(m, gofastcore.BlockCost+len(text)) {
+		return
+	}
+	*to = append(*to, gofastcore.Block{Kind: gofastcore.KindNote, Text: text, Hidden: gofastcore.HiddenInvisible,
+		Attrs: map[string]string{gofastcore.AttrNoteType: kind}})
+}
+
+// proseWords counts the words of s as prose has them: runs of letters,
+// with punctuation around them allowed. Tokens with digits, "=", "@", "."
+// or "/" inside (addresses, ids, parameters, the tokens of trace and
+// authentication headers) are not words, so that the routine headers of
+// a server do not count as text.
+func proseWords(s string) int {
+	n := 0
+	for _, f := range strings.Fields(s) {
+		f = strings.TrimFunc(f, func(c rune) bool { return strings.ContainsRune(`()[]<>"',.;:!?-`, c) })
+		if f == "" {
+			continue
+		}
+		word := true
+		for _, c := range f {
+			if !unicode.IsLetter(c) && c != '\'' && c != '-' {
+				word = false
+				break
+			}
+		}
+		if word {
+			n++
+		}
+	}
+	return n
 }
 
 // head adds the heading that holds the subject and the block of the
@@ -564,10 +622,19 @@ func (r *reader) stored(m *message, kind string, raw []byte) {
 	}
 	text, _ := charset.Decode("", raw)
 	text = strings.TrimSpace(clean.Text(text))
-	if text == "" || !r.take(m, gofastcore.BlockCost+len(text)) {
+	if text == "" {
 		return
 	}
-	m.body = append(m.body, gofastcore.Block{Kind: gofastcore.KindNote, Text: text, Hidden: gofastcore.HiddenInvisible,
+	// "This is a multi-part message in MIME format." is the usual
+	// preamble: routine, not flagged. A long one is out of proportion.
+	if n := proseWords(text); n > UnshownOutlierWords {
+		r.outlier(m, &m.body, kind, text, fmt.Sprintf("the %s of a multipart body, which no mail program shows, holds %d words", strings.TrimPrefix(kind, "mime_"), n))
+		return
+	}
+	if !r.take(m, gofastcore.BlockCost+len(text)) {
+		return
+	}
+	m.body = append(m.body, gofastcore.Block{Kind: gofastcore.KindNote, Text: text,
 		Attrs: map[string]string{gofastcore.AttrNoteType: kind}})
 }
 

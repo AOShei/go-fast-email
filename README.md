@@ -66,7 +66,9 @@ its place in the file. A part's `Name` is the subject. Its blocks are:
    in `Document.Children` of every document that came from this message,
    which is how the children of a mailbox's messages are told apart.
 3. In a mailbox only: a `note` with `Attrs["type"] = "headers"` holding
-   every other header (and the `From ` line), flagged `invisible`.
+   every other header (and the `From ` line), not flagged.
+   In any message, a header out of proportion (see Hidden content) is a
+   `note` of its own, flagged.
 4. The body.
 
 For a single message (`.eml`, `.msg`), `Metadata` has the subject as
@@ -129,16 +131,26 @@ warning that names the set. The tables' sources are in [`NOTICE`](NOTICE).
 
 ## Hidden content
 
-| What | How it is flagged |
-|---|---|
-| Headers a mail program does not show (`X-*`, `Received`, `Reply-To`, `Message-ID`, the MIME headers) | Single message: `Metadata.Extra`. Mailbox: a `note` of type `headers`, `invisible` |
-| The preamble and epilogue of a multipart body, which no mail program shows | `note` of type `mime_preamble` / `mime_epilogue`, `invisible` |
-| An alternative body that is not the text/plain one | an embedded document, and `email.alternatives` on the part |
-| An Outlook attachment marked hidden (`PR_ATTACHMENT_HIDDEN`) | extracted as an embedded document, not named in the `Attachments:` line |
-| Invisible characters anywhere in block text | `invisible_chars` (core's scan); in metadata, a document-level `text.hidden` |
+The hidden flag is a signal of suspicious hiding, as go-fast-core defines
+it ("What earns a flag"): data every message keeps and no mail program
+shows is extracted and bounded, and not flagged, since a flag on it would
+be set on clean and poisoned mail alike. Such data is flagged only where
+one item is out of proportion for its kind: more than
+`UnshownOutlierWords` (30) words. Words are counted as prose has them,
+runs of letters; the addresses, ids and `key=value` tokens of trace and
+authentication headers (`Received`, `Authentication-Results`, DKIM) do
+not count, so an ordinary delivered message trips nothing.
 
-`HiddenChecked` is `invisible+invisible_chars`. The `invisible` check covers
-what the message format itself says is not shown; whatever is hidden inside
+| What | How it is extracted | Flagged |
+|---|---|---|
+| Headers a mail program does not show (`X-*`, `Received`, `Reply-To`, `Message-ID`, the MIME headers, Outlook's transport headers) | Single message: `Metadata.Extra`. Mailbox: a `note` of type `headers` | No. A header of more than 30 words: also a `note` of its own, `invisible`, and `email.unshown_outlier` |
+| The preamble and epilogue of a multipart body ("This is a multi-part message in MIME format.") | `note` of type `mime_preamble` / `mime_epilogue` | No. One of more than 30 words: `invisible`, and `email.unshown_outlier` |
+| An alternative body that is not the text/plain one | an embedded document, and `email.alternatives` on the part | No (its own extractor flags what it hides) |
+| An Outlook attachment marked hidden (`PR_ATTACHMENT_HIDDEN`) | extracted as an embedded document, not named in the `Attachments:` line | No |
+| Invisible characters anywhere in block text | as text | `invisible_chars` (core's scan); in metadata, a document-level `text.hidden` |
+
+`HiddenChecked` is `invisible+invisible_chars`. The `invisible` check is
+the outlier rule above over all unshown data of the message format; whatever is hidden inside
 an HTML or RTF body (`display:none`, white text) is for that body's
 extractor to flag. A mail program that shows the HTML alternative shows
 none of the text/plain blocks; that is reported by `email.alternatives`,
@@ -149,6 +161,7 @@ not by a flag.
 | Code | When |
 |---|---|
 | `email.alternatives` (warning) | The message has alternative bodies |
+| `email.unshown_outlier` (warning) | A header, preamble or epilogue that no mail program shows holds more than 30 words; it is a note flagged `invisible` |
 | `email.unknown_transfer_encoding` (warning) | A part declares a transfer encoding other than base64, quoted-printable, 7bit, 8bit or binary; its bytes are taken as they are |
 | `text.unmapped_glyphs` | A character set not decoded, or bytes not valid in the one declared |
 | `input.repaired` | A header section ended by a line that is not a header; a multipart body without closing boundary or without any boundary; base64 with characters outside its alphabet; an unreadable compressed RTF body; a damaged TNEF stream (cut short, a wrong checksum, an unreadable property list) |
