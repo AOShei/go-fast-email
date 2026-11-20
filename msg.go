@@ -103,15 +103,22 @@ type props struct {
 	label  string // the character set of PT_STRING8 values
 	limit  int64
 	m      *message
+	// r, for a compound file: every byte read from it is taken from the
+	// decode budget, since a file can give many streams the same sectors
+	// and so be read many times over.
+	r *reader
 }
 
 func (r *reader) readProps(m *message, f *cfb.File, prefix []string, headerSize int) *props {
-	p := &props{f: f, prefix: prefix, fixed: map[uint32]uint64{}, limit: r.e.maxMessage(), m: m}
+	p := &props{f: f, prefix: prefix, fixed: map[uint32]uint64{}, limit: r.e.maxMessage(), m: m, r: r}
 	s, err := f.Open(p.path("__properties_version1.0")...)
 	if err != nil {
 		return p
 	}
 	n := min(s.Size(), int64(headerSize)+16*65536)
+	if !r.takeRead(m, n) {
+		return p
+	}
 	buf := make([]byte, n)
 	got, _ := s.ReadAt(buf, 0)
 	buf = buf[:got]
@@ -150,9 +157,25 @@ func (p *props) read(id, typ uint16) ([]byte, bool) {
 		p.m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("a property of %d bytes read to %d", n, p.limit))
 		n = p.limit
 	}
+	if p.r != nil && !p.r.takeRead(p.m, n) {
+		return nil, false
+	}
 	buf := make([]byte, n)
 	got, _ := s.ReadAt(buf, 0)
 	return buf[:got], true
+}
+
+// takeRead takes n bytes read from a compound file from the decode
+// budget, and warns once when it is spent.
+func (r *reader) takeRead(m *message, n int64) bool {
+	if m.undecode || !r.dec.Take(n) {
+		if !m.undecode {
+			m.undecode = true
+			m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "decode limit reached; the rest of the message's parts are listed, not read")
+		}
+		return false
+	}
+	return true
 }
 
 // str returns a string property, Unicode or 8-bit.
@@ -301,13 +324,19 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 	if more {
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the message has more than %d recipients; the rest are not read", maxStorages))
 	}
+	held := int64(0) // bytes of recipients held, before the text budget sees them
 	for _, name := range names {
+		if held > r.text.Left() {
+			m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "text limit reached; the rest of the recipients are not read")
+			break
+		}
 		rp := r.readProps(m, f, append(append([]string(nil), prefix...), name), 8)
 		rp.label = p.label
 		a := address(line(rp.str(pidDisplayName)), line(firstOf(rp.str(pidSMTPAddress), rp.str(pidEmailAddress))))
 		if a == "" {
 			continue
 		}
+		held += int64(len(a))
 		switch t, _ := rp.int32(pidRecipientType); t &^ 0x10000000 { // the high bit marks a resent recipient
 		case 2:
 			cc = append(cc, a)
@@ -455,7 +484,10 @@ func (r *reader) outlookBody(m *message, p *props) {
 		if cp, ok := p.int32(pidInternetCPID); ok {
 			mime = withCharset(mime, map[string]string{"charset": codepageLabel(cp)})
 		}
-		r.child(m, "", mime, r.budget(m, html), false)
+		if p.f == nil {
+			html = r.budget(m, html) // from a TNEF stream; read from a compound file, it is counted
+		}
+		r.child(m, "", mime, html, false)
 	}
 	if hasRTF {
 		limit := min(r.e.maxMessage(), max(r.dec.Left(), 0))
@@ -538,7 +570,11 @@ func (r *reader) outlookAttachment(m *message, ap *props, title string, embedded
 			r.child(m, file, mime, nil, listed)
 			return
 		}
-		data = r.budget(m, data)
+		if ap.f == nil {
+			data = r.budget(m, data) // from a TNEF stream; read from a compound file, it is counted
+		} else if data == nil {
+			data = []byte{}
+		}
 		if isTNEF(mime) || strings.EqualFold(file, "winmail.dat") {
 			r.tnefChild(m, file, mime, data, listed)
 			return
