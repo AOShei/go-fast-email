@@ -51,12 +51,6 @@ const (
 //	                      header, a multipart body with no closing
 //	                      boundary or no boundary at all, base64 with
 //	                      characters outside its alphabet
-//	text.hidden           invisible characters in text or metadata, and
-//	                      unshown data out of proportion for its kind
-//	text.unshown_outlier  a header, preamble or epilogue that no mail
-//	                      program shows is out of proportion by core's
-//	                      rule (gofastcore.UnshownOutlier); it is a note
-//	                      flagged invisible
 const (
 	// WarnAlternatives: the message has alternative bodies
 	// (multipart/alternative). The blocks are the text/plain alternative;
@@ -185,25 +179,4 @@ func (e *Extractor) maxDepth() int {
 
 func (e *Extractor) maxParts() int {
 	return int(min(gofastcore.ResolveLimit(int64(e.MaxMIMEParts), DefaultMaxMIMEParts), 1<<40))
-}
-
-// hiddenInMetadata reports whether any metadata string holds invisible
-// characters. Metadata cannot carry a block flag, so the finding becomes
-// a document-level warning.
-func hiddenInMetadata(m *gofastcore.Metadata) bool {
-	found := func(s string) bool { return gofastcore.InvisibleChars(s) != nil }
-	if found(m.Title) || found(m.Subject) {
-		return true
-	}
-	for _, s := range m.Authors {
-		if found(s) {
-			return true
-		}
-	}
-	for k, v := range m.Extra {
-		if found(k) || found(v) {
-			return true
-		}
-	}
-	return false
 }

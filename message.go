@@ -14,7 +14,6 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/AOShei/go-fast-core"
 	"github.com/AOShei/go-fast-email/internal/charset"
@@ -39,11 +38,12 @@ const (
 	RoleHeaders   = "headers"
 	RoleSignature = "signature" // the value of textbody.RoleSignature
 	// NoteHeaders: a note block that holds the headers a mail program does
-	// not show, one "Name: value" per line; flagged invisible.
+	// not show, one "Name: value" per line (in a mailbox). No display
+	// reason: the format declares none.
 	NoteHeaders = "headers"
 	// NotePreamble and NoteEpilogue: the text of a multipart body before
-	// its first part and after its last, which no mail program shows;
-	// flagged invisible.
+	// its first part and after its last, which no mail program shows. No
+	// display reason: the format declares none.
 	NotePreamble = "mime_preamble"
 	NoteEpilogue = "mime_epilogue"
 )
@@ -150,10 +150,6 @@ func (r *reader) eml(src io.ReaderAt, size int64) (*gofastcore.Document, error) 
 
 // finish sets what is set once the parts are read.
 func (r *reader) finish() *gofastcore.Document {
-	r.doc.HiddenChecked = gofastcore.HiddenChars | gofastcore.HiddenInvisible
-	if hiddenInMetadata(&r.doc.Metadata) {
-		r.doc.Warn(gofastcore.SeverityWarning, gofastcore.WarnTextHidden, "metadata contains invisible characters")
-	}
 	return r.doc
 }
 
@@ -213,18 +209,20 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 			}
 		})
 	}
-	var unshown []headerField
-	if envelope != "" {
-		unshown = append(unshown, headerField{"From ", "From " + envelope, envelope})
-	}
-	for _, f := range fields {
-		if !isShown(f.key) {
-			unshown = append(unshown, headerField{f.name, f.name + ": " + f.value, f.value})
+	if !m.inline {
+		// In a mailbox the metadata is the file's, so the headers that are
+		// not shown are a note of the message's part.
+		var unshown []headerField
+		if envelope != "" {
+			unshown = append(unshown, headerField{"From ", "From " + envelope, envelope})
 		}
+		for _, f := range fields {
+			if !isShown(f.key) {
+				unshown = append(unshown, headerField{f.name, f.name + ": " + f.value, f.value})
+			}
+		}
+		r.headersNote(m, unshown)
 	}
-	// In a mailbox the metadata is the file's, so the headers that are
-	// not shown are a note of the message's part.
-	r.unshownHeaders(m, unshown, !m.inline)
 
 	r.entity(m, h, raw[bodyAt:], 0, false, "text/plain")
 	r.tail(m, headersAt)
@@ -259,156 +257,19 @@ func joinFields(extra map[string]string, n int, fields func(yield func(k, v stri
 // line as written in a note ("Name: value") and its value.
 type headerField struct{ name, line, value string }
 
-// machineHeaders are headers that servers, filters and mail programs
-// write, long by nature, whose values are signatures, encoded reports and
-// tokens, lists of message ids, keys, or trace data: on ordinary delivered
-// mail they exceed core's character limit. Their machine tokens are left
-// out before core's outlier rule is applied (see machineTokensOut), and
-// each comment in parentheses is an item of its own, so prose in them
-// still counts. Names are lowercase; machineHeaderPrefixes are prefixes,
-// each the namespace of one vendor's filter or service.
-var machineHeaders = map[string]bool{
-	"received": true, "x-received": true, "received-spf": true,
-	"dkim-signature": true, "domainkey-signature": true,
-	"arc-seal": true, "arc-message-signature": true, "arc-authentication-results": true,
-	"authentication-results": true, "authentication-results-original": true,
-	"references": true, "in-reply-to": true, "autocrypt": true, "list-unsubscribe": true,
-	"msip_labels": true, "thread-index": true,
-	"x-instance-identity": true, "x-asf-dkim-sig": true, "x-authority-analysis": true,
-	"x-sg-eid": true, "x-sg-id": true, "x-cmae-envelope": true,
-}
-
-var machineHeaderPrefixes = []string{
-	"x-ms-", "x-microsoft-", "x-forefront-", "x-exchange-", // Microsoft Exchange and Outlook.com
-	"x-gm-", "x-google-", // Gmail
-	"x-spam-",                                                     // SpamAssassin, amavis and other filters
-	"x-proofpoint-", "x-ironport-", "x-barracuda-", "x-mimecast-", // filtering services
-	"x-ymail-", "x-yahoo-", "x-qq-", // Yahoo, QQ
-}
-
-func isMachineHeader(name string) bool {
-	name = strings.ToLower(name)
-	if machineHeaders[name] {
-		return true
+// headersNote adds, in a mailbox, the note of the headers a mail program
+// does not show (one "Name: value" per line). A header is a header
+// whatever it holds: it keeps its provenance in the note's type, and no
+// display reason is set (the format declares none).
+func (r *reader) headersNote(m *message, fields []headerField) {
+	lines := make([]string, len(fields))
+	for i, f := range fields {
+		lines[i] = f.line
 	}
-	for _, p := range machineHeaderPrefixes {
-		if strings.HasPrefix(name, p) {
-			return true
-		}
-	}
-	return false
-}
-
-// machineTokensOut returns s without its machine tokens: a token (with
-// punctuation trimmed from its ends) that is empty, longer than 40 bytes,
-// or holds "=", "@", ";", ":" or "/" (a rule of dashes, a signature, an
-// encoded blob, a key=value pair, an address, a URL). What is left is
-// prose, to which core's rule applies in full.
-func machineTokensOut(s string) string {
-	return tokensOut(s, func(t string) bool { return len(t) > 40 || strings.ContainsAny(t, "=@;:/") })
-}
-
-// linkTokensOut returns s without the tokens that are links, addresses or
-// punctuation alone (the rules and URLs of a mailing list's footer). An
-// encoded payload stays, so that it counts by its length.
-func linkTokensOut(s string) string {
-	return tokensOut(s, func(t string) bool { return strings.Contains(t, "://") || strings.Contains(t, "@") })
-}
-
-func tokensOut(s string, drop func(string) bool) string {
-	var keep []string
-	for tok := range strings.FieldsSeq(s) {
-		t := strings.TrimFunc(tok, func(r rune) bool { return unicode.IsPunct(r) || unicode.IsSymbol(r) })
-		if t == "" || drop(t) {
-			continue
-		}
-		keep = append(keep, tok)
-	}
-	return strings.Join(keep, " ")
-}
-
-// machineItems splits the value of a machine header into the items core's
-// rule is applied to: each comment in parentheses (RFC 5322 CFWS; a
-// Received header's TLS details, an SPF explanation) and the rest, each
-// with its machine tokens left out. Unbalanced parentheses end the
-// comment at the end of the value.
-func machineItems(v string) []string {
-	var items []string
-	var rest, comment strings.Builder
-	depth := 0
-	for _, c := range v {
-		switch {
-		case c == '(':
-			if depth > 0 {
-				comment.WriteRune(' ')
-			}
-			depth++
-		case c == ')' && depth > 0:
-			depth--
-			if depth == 0 {
-				items = append(items, machineTokensOut(comment.String()))
-				comment.Reset()
-				rest.WriteRune(' ')
-			} else {
-				comment.WriteRune(' ')
-			}
-		case depth > 0:
-			comment.WriteRune(c)
-		default:
-			rest.WriteRune(c)
-		}
-	}
-	if comment.Len() > 0 {
-		items = append(items, machineTokensOut(comment.String()))
-	}
-	return append(items, machineTokensOut(rest.String()))
-}
-
-// headerOutlier applies core's rule to a header a mail program does not
-// show.
-func headerOutlier(name, value string) bool {
-	if !isMachineHeader(name) {
-		return gofastcore.UnshownOutlier(value)
-	}
-	for _, item := range machineItems(value) {
-		if gofastcore.UnshownOutlier(item) {
-			return true
-		}
-	}
-	return false
-}
-
-// unshownHeaders adds the headers a mail program does not show. Those are
-// routine (every message has them) and are not flagged: with all set (a
-// mailbox, whose metadata is the file's) they are a note. A header whose
-// value is out of proportion by core's rule (gofastcore.UnshownOutlier;
-// for a machine header, with its machine tokens left out) is a note of
-// its own in any case, flagged invisible, with a warning.
-func (r *reader) unshownHeaders(m *message, fields []headerField, all bool) {
-	var routine []string
-	for _, f := range fields {
-		if headerOutlier(f.name, f.value) {
-			r.outlier(m, &m.part.Blocks, NoteHeaders, gofastcore.ExpandLigatures(strings.TrimSpace(f.line)), fmt.Sprintf("the header %q, which a mail program does not show, holds more than %d words or %d characters",
-				clean.Cut(f.name, 64), gofastcore.UnshownOutlierWords, gofastcore.UnshownOutlierChars))
-		} else if all {
-			routine = append(routine, f.line)
-		}
-	}
-	if t := gofastcore.ExpandLigatures(strings.TrimSpace(strings.Join(routine, "\n"))); t != "" && r.take(m, gofastcore.BlockCost+len(t)) {
+	if t := gofastcore.ExpandLigatures(strings.TrimSpace(strings.Join(lines, "\n"))); t != "" && r.take(m, gofastcore.BlockCost+len(t)) {
 		m.part.Blocks = append(m.part.Blocks, gofastcore.Block{Kind: gofastcore.KindNote, Text: t,
 			Attrs: map[string]string{gofastcore.AttrNoteType: NoteHeaders}})
 	}
-}
-
-// outlier adds a note of unshown data that is out of proportion for its
-// kind, flagged invisible, and the warning that says so.
-func (r *reader) outlier(m *message, to *[]gofastcore.Block, kind, text, what string) {
-	m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnshownOutlier, what)
-	if text == "" || !r.take(m, gofastcore.BlockCost+len(text)) {
-		return
-	}
-	*to = append(*to, gofastcore.Block{Kind: gofastcore.KindNote, Text: text, Hidden: gofastcore.HiddenInvisible,
-		Attrs: map[string]string{gofastcore.AttrNoteType: kind}})
 }
 
 // head adds the heading that holds the subject and the block of the
@@ -452,7 +313,7 @@ func (r *reader) tail(m *message, headersAt int) {
 	if len(m.part.Blocks) == 0 {
 		m.warn(gofastcore.SeverityInfo, gofastcore.WarnPartNoText, "the message has no text")
 	}
-	m.part.MarkHidden()
+	m.part.Finish()
 }
 
 func isShown(key string) bool {
@@ -726,8 +587,9 @@ func (r *reader) multipart(m *message, mediatype, boundary string, body []byte, 
 	r.stored(m, NoteEpilogue, mp.Epilogue)
 }
 
-// stored adds the text of a preamble or epilogue, which no mail program
-// shows, as a note, flagged invisible only when it is an outlier.
+// stored adds the text of a preamble or epilogue as a note whose type
+// says where it came from. No display reason is set: the format declares
+// none.
 func (r *reader) stored(m *message, kind string, raw []byte) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return
@@ -735,15 +597,6 @@ func (r *reader) stored(m *message, kind string, raw []byte) {
 	text, _ := charset.Decode("", raw)
 	text = strings.TrimSpace(clean.Text(text))
 	if text == "" {
-		return
-	}
-	// "This is a multi-part message in MIME format." is the usual
-	// preamble: routine, not flagged; so is the footer a mailing list
-	// appends after the closing boundary, once its rules, links and
-	// addresses are left out. A long one is out of proportion.
-	if gofastcore.UnshownOutlier(linkTokensOut(text)) {
-		r.outlier(m, &m.body, kind, text, fmt.Sprintf("the %s of a multipart body, which no mail program shows, holds more than %d words or %d characters",
-			strings.TrimPrefix(kind, "mime_"), gofastcore.UnshownOutlierWords, gofastcore.UnshownOutlierChars))
 		return
 	}
 	if !r.take(m, gofastcore.BlockCost+len(text)) {

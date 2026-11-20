@@ -26,8 +26,8 @@ func corpusRoot() string {
 
 // tally counts what came out of one set of files.
 type tally struct {
-	files, panics, timeouts, invalid int
-	errors, hidden, warnings         map[string]int
+	files, panics, timeouts, invalid, withReason int
+	errors, display, warnings                    map[string]int // display: blocks by reason
 }
 
 func (t *tally) add(m map[string]int, k string) { m[k]++ }
@@ -47,9 +47,10 @@ func sorted(m map[string]int) string {
 
 // TestCorpus runs the extractor over the public corpus: every eml, mbox
 // and msg file under dev/ and heldout/, each with a time limit and a
-// moderate text budget. It logs a tally per set and fails on a panic, a
-// Validate failure or a timeout. For dev files it also logs every hidden
-// flag with an excerpt, for review; for held-out files only counts.
+// moderate text budget. It logs a tally per set (files and blocks with a
+// display reason, by reason) and fails on a panic, a Validate failure, a
+// timeout, or a display reason, which this library never sets. Held-out
+// files are counted, never named.
 func TestCorpus(t *testing.T) {
 	root := corpusRoot()
 	if _, err := os.Stat(root); err != nil {
@@ -70,7 +71,7 @@ func TestCorpus(t *testing.T) {
 			if err != nil {
 				continue
 			}
-			tl := &tally{errors: map[string]int{}, hidden: map[string]int{}, warnings: map[string]int{}}
+			tl := &tally{errors: map[string]int{}, display: map[string]int{}, warnings: map[string]int{}}
 			for _, ent := range entries {
 				if ent.IsDir() {
 					continue
@@ -83,8 +84,8 @@ func TestCorpus(t *testing.T) {
 				}
 				corpusFile(t, e, child, path, label, set == "dev", tl)
 			}
-			t.Logf("%s/%s: files=%d panics=%d timeouts=%d invalid=%d\n  errors:%s\n  hidden:%s\n  warnings:%s",
-				set, format, tl.files, tl.panics, tl.timeouts, tl.invalid, sorted(tl.errors), sorted(tl.hidden), sorted(tl.warnings))
+			t.Logf("%s/%s: files=%d panics=%d timeouts=%d invalid=%d files_with_reason=%d\n  errors:%s\n  blocks by display:%s\n  warnings:%s",
+				set, format, tl.files, tl.panics, tl.timeouts, tl.invalid, tl.withReason, sorted(tl.errors), sorted(tl.display), sorted(tl.warnings))
 		}
 	}
 }
@@ -167,22 +168,24 @@ func corpusFile(t *testing.T, e *gofastemail.Extractor, child gofastcore.ChildFu
 			t.Errorf("%s: Validate failed", label)
 		}
 	}
+	// Every document here, children included, comes from this library,
+	// which reports no display reason: email declares none of its own.
+	withReason := false
 	var walk func(d *gofastcore.Document)
 	walk = func(d *gofastcore.Document) {
 		for _, w := range d.AllWarnings() {
 			tl.add(tl.warnings, w.Code)
 		}
 		for p, b := range d.AllBlocks() {
-			if b.Hidden == 0 {
+			if b.Display == 0 {
 				continue
 			}
-			tl.add(tl.hidden, b.Hidden.String())
+			withReason = true
+			tl.add(tl.display, b.Display.String())
 			if dev {
-				excerpt := []rune(strings.Join(strings.Fields(b.Text), " "))
-				if len(excerpt) > 60 {
-					excerpt = excerpt[:60]
-				}
-				t.Logf("FLAG %s part %d %s %s: %q", label, p.Number, b.Kind, b.Hidden, string(excerpt))
+				t.Errorf("%s part %d: %s block with display %s", label, p.Number, b.Kind, b.Display)
+			} else {
+				t.Errorf("%s: a block with a display reason", label)
 			}
 		}
 		for _, c := range d.Children {
@@ -190,4 +193,7 @@ func corpusFile(t *testing.T, e *gofastemail.Extractor, child gofastcore.ChildFu
 		}
 	}
 	walk(res.doc)
+	if withReason {
+		tl.withReason++
+	}
 }

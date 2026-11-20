@@ -130,13 +130,10 @@ func TestMsgManyRecipients(t *testing.T) {
 }
 
 // The headers a mail program does not show are written with ligatures as
-// their letters too: in a mailbox's note of headers, and in the note of
-// an outlier header.
+// their letters too, in a mailbox's note of headers.
 func TestHeaderNotesExpandLigatures(t *testing.T) {
-	long := strings.Repeat("word ", 40)
 	ffi := string(rune(0xFB03)) // the ligature ffi
 	for _, data := range []string{
-		"From: a\nX-Note: o" + ffi + "ce " + long + "\n\nbody\n",
 		"From x\nFrom: a\nX-Note: o" + ffi + "ce\n\nbody\n",
 	} {
 		doc := extract(t, data, nil)

@@ -47,9 +47,8 @@ func dispatcher(got *[]seen) gofastcore.ChildFunc {
 		if t := strings.TrimSpace(gofastcore.ExpandLigatures(printable)); t != "" && strings.HasPrefix(mime, "text/") {
 			p.Blocks = append(p.Blocks, gofastcore.Block{Kind: gofastcore.KindParagraph, Text: strings.Join(strings.Fields(t), " ")})
 		}
-		p.MarkHidden()
+		p.Finish()
 		d.Parts = append(d.Parts, p)
-		d.HiddenChecked = gofastcore.HiddenChars
 		return d, nil
 	}
 }

@@ -97,7 +97,7 @@ func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Par
 	// mailbox of a great many empty messages is bounded too.
 	if !r.take(m, gofastcore.BlockCost) {
 		m.part.Kind, m.part.Number = gofastcore.PartMessage, number
-		m.part.MarkHidden()
+		m.part.Finish()
 		return m.part
 	}
 	r.message(m, raw, number, s.envelope)

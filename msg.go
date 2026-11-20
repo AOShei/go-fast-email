@@ -383,7 +383,6 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 		md.Modified = t
 	}
 	extra := map[string]string{}
-	var unshown []headerField
 	// The headers the message had in transit, which Outlook keeps and
 	// does not show.
 	if h := p.str(pidTransportHeaders); h != "" {
@@ -395,14 +394,10 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 				if k == "" {
 					continue
 				}
-				if !isShown(k) {
-					unshown = append(unshown, headerField{clean.Line(fl.Name), clean.Line(fl.Name) + ": " + v, v})
-				}
 				yield(k, v)
 			}
 		})
 	}
-	r.unshownHeaders(m, unshown, false)
 	if v := line(p.str(pidMessageClass)); v != "" {
 		extra["message-class"] = v
 	}

@@ -45,38 +45,6 @@ func main() {
 // The extensions of the files this command picks out of a directory.
 var extensions = map[string]bool{".eml": true, ".mbox": true, ".mbx": true, ".msg": true}
 
-// hiddenFlag is --exclude-hidden: given alone it stands for every
-// reason, and with a value for the reasons named.
-type hiddenFlag struct{ reasons gofastcore.Hidden }
-
-func (h *hiddenFlag) IsBoolFlag() bool { return true }
-func (h *hiddenFlag) String() string {
-	if h.reasons == 0 {
-		return ""
-	}
-	return h.reasons.String()
-}
-
-func (h *hiddenFlag) Set(v string) error {
-	switch v {
-	case "true", "all":
-		h.reasons = gofastcore.HiddenAny
-		return nil
-	case "false", "":
-		h.reasons = 0
-		return nil
-	}
-	var reasons gofastcore.Hidden
-	if err := reasons.UnmarshalText([]byte(strings.ReplaceAll(v, ",", "+"))); err != nil {
-		return err
-	}
-	if !reasons.Valid() || reasons == 0 {
-		return fmt.Errorf("unknown reason in %q", v)
-	}
-	h.reasons = reasons
-	return nil
-}
-
 // run is the command: it reads args and writes documents to stdout and
 // messages to stderr, and returns the exit status.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -94,8 +62,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		version    = flags.Bool("version", false, "print the version and exit")
 		markers    = flags.Bool("part-markers", false, "in Markdown and text, mark where each message begins")
 	)
-	var exclude hiddenFlag
-	flags.Var(&exclude, "exclude-hidden", "in Markdown and text, leave out hidden text: all of it, or with =reasons only what is hidden for those reasons (JSON always has everything, flagged)")
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: gofastemail [flags] file-or-directory...")
 		fmt.Fprintln(stderr, "Extracts .eml, .mbox and .msg files, and winmail.dat files named on the command line. A directory stands for the email files in it and below it.")
@@ -191,7 +157,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	w := bufio.NewWriter(out)
 	defer w.Flush()
-	render := &gofastcore.RenderOptions{PartMarkers: *markers, ExcludeHidden: exclude.reasons}
+	render := &gofastcore.RenderOptions{PartMarkers: *markers}
 
 	written := 0
 	for _, path := range inputs {
@@ -254,12 +220,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 // remarks sums up what a document's warnings say that a person running
-// the command would want to know without reading the JSON: text that is
-// hidden, and anything of severity error.
+// the command would want to know without reading the JSON: anything of
+// severity error.
 func remarks(doc *gofastcore.Document) string {
 	counts := map[string]int{}
 	for _, w := range doc.AllWarnings() {
-		if w.Severity == gofastcore.SeverityError || w.Code == gofastcore.WarnTextHidden {
+		if w.Severity == gofastcore.SeverityError {
 			counts[w.Code]++
 		}
 	}
