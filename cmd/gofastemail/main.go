@@ -146,24 +146,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		opts.Parts = gofastcore.PartRange{First: a, Last: b}
 	}
 	extractor := &gofastemail.Extractor{MaxMessageBytes: *maxMessage}
-	// Attached messages are read by this library, HTML, Markdown and plain
-	// text by go-fast-html, RTF by go-fast-rtf; everything else is listed.
-	// Core's depth limit applies through ExtractChild.
-	opts.Child = func(ctx context.Context, name, mimeType string, r io.ReaderAt, size int64, o *gofastcore.Options) (*gofastcore.Document, error) {
-		switch mediaType(mimeType) {
-		case "message/rfc822", "message/global", "application/vnd.ms-outlook":
-			return extractor.Extract(ctx, r, size, o)
-		case "text/html", "application/xhtml+xml":
-			return (&gofasthtml.Extractor{Format: "html", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
-		case "text/markdown":
-			return (&gofasthtml.Extractor{Format: "md", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
-		case "text/plain":
-			return (&gofasthtml.Extractor{Format: "txt", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
-		case "application/rtf", "text/rtf":
-			return (&gofastrtf.Extractor{}).Extract(ctx, r, size, o)
-		}
-		return nil, fmt.Errorf("gofastemail: no extractor for %q: %w", mimeType, gofastcore.ErrUnsupported)
-	}
+	opts.Child = dispatcher(extractor)
 
 	var inputs []string
 	status := 0
@@ -277,6 +260,43 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		written++
 	}
 	return status
+}
+
+// dispatcher returns the command's Options.Child: attached messages are
+// read by this library, HTML, Markdown and plain text by go-fast-html, RTF
+// by go-fast-rtf; everything else is listed. Core's depth limit applies
+// through ExtractChild.
+func dispatcher(extractor *gofastemail.Extractor) gofastcore.ChildFunc {
+	return func(ctx context.Context, name, mimeType string, r io.ReaderAt, size int64, o *gofastcore.Options) (*gofastcore.Document, error) {
+		t := mediaType(mimeType)
+		if t == "" || t == "application/octet-stream" {
+			// Outlook keeps no type for many attachments, and mail
+			// programs send files as octet-stream: the extension says.
+			t = byExtension[strings.ToLower(filepath.Ext(name))]
+		}
+		switch t {
+		case "message/rfc822", "message/global", "application/vnd.ms-outlook":
+			return extractor.Extract(ctx, r, size, o)
+		case "text/html", "application/xhtml+xml":
+			return (&gofasthtml.Extractor{Format: "html", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
+		case "text/markdown":
+			return (&gofasthtml.Extractor{Format: "md", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
+		case "text/plain":
+			return (&gofasthtml.Extractor{Format: "txt", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
+		case "application/rtf", "text/rtf":
+			return (&gofastrtf.Extractor{}).Extract(ctx, r, size, o)
+		}
+		return nil, fmt.Errorf("gofastemail: no extractor for %q: %w", mimeType, gofastcore.ErrUnsupported)
+	}
+}
+
+// byExtension gives the media type that an attachment declared
+// application/octet-stream, or with no type, is read as, by the extension
+// of its name.
+var byExtension = map[string]string{
+	".eml": "message/rfc822", ".msg": "application/vnd.ms-outlook",
+	".htm": "text/html", ".html": "text/html", ".xhtml": "application/xhtml+xml",
+	".txt": "text/plain", ".md": "text/markdown", ".rtf": "application/rtf",
 }
 
 // remarks sums up what a document's warnings say that a person running

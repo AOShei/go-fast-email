@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/AOShei/go-fast-core"
 	"github.com/AOShei/go-fast-email/internal/cfb"
@@ -72,6 +73,7 @@ const (
 	pidSMTPAddress        = 0x39FE
 	pidInternetCPID       = 0x3FDE
 	pidMessageCodepage    = 0x3FFD
+	pidMessageLocaleID    = 0x3FF1
 	pidSenderSMTPAddress  = 0x5D01
 	pidAttachmentHidden   = 0x7FFE
 )
@@ -101,8 +103,12 @@ type props struct {
 	values map[uint32][]byte
 	fixed  map[uint32]uint64
 	label  string // the character set of PT_STRING8 values
-	limit  int64
-	m      *message
+	// alt, when label is UTF-8 taken from PR_INTERNET_CPID, is the ANSI
+	// code page of the message's locale: a PT_STRING8 value that is not
+	// valid UTF-8 is read in it.
+	alt   string
+	limit int64
+	m     *message
 	// r, for a compound file: every byte read from it is taken from the
 	// decode budget, since a file can give many streams the same sectors
 	// and so be read many times over.
@@ -188,9 +194,14 @@ func (p *props) str(id uint16) string {
 		return strings.TrimRight(s, "\x00")
 	}
 	if b, ok := p.read(id, ptString8); ok {
-		s, res := charset.Decode(p.label, bytes.TrimRight(b, "\x00"))
+		b = bytes.TrimRight(b, "\x00")
+		label := p.label
+		if p.alt != "" && !utf8.Valid(b) {
+			label = p.alt
+		}
+		s, res := charset.Decode(label, b)
 		if !res.Known || res.Replaced {
-			p.m.charsetReport()(p.label, res)
+			p.m.charsetReport()(label, res)
 		}
 		return s
 	}
@@ -240,8 +251,61 @@ func codepageLabel(cp int32) string {
 		return "utf-16le"
 	case 1201:
 		return "utf-16be"
+	case 874, 1250, 1251, 1253, 1254, 1255, 1256, 1257, 1258:
+		return fmt.Sprintf("windows-%d", cp)
+	case 932:
+		return "shift_jis"
+	case 936:
+		return "gbk"
+	case 949:
+		return "euc-kr"
+	case 950:
+		return "big5"
+	case 54936:
+		return "gb18030"
+	case 20866:
+		return "koi8-r"
+	case 21866:
+		return "koi8-u"
+	case 51932:
+		return "euc-jp"
+	case 50220, 50221, 50222:
+		return "iso-2022-jp"
+	}
+	if cp >= 28592 && cp <= 28606 {
+		return fmt.Sprintf("iso-8859-%d", cp-28590)
 	}
 	return fmt.Sprintf("cp%d", cp)
+}
+
+// localeCodepage names the Windows ANSI code page of a locale identifier
+// (PR_MESSAGE_LOCALE_ID, [MS-LCID]) by its primary language, for the
+// languages whose code page does not depend on the sublanguage and is one
+// this library decodes; "" for the others.
+func localeCodepage(lcid int32) string {
+	switch lcid & 0x3FF {
+	case 0x03, 0x06, 0x07, 0x09, 0x0A, 0x0B, 0x0C, 0x0F, 0x10, 0x13, 0x14, 0x16, 0x1D, 0x21, 0x2D, 0x36, 0x38, 0x3E, 0x41, 0x56:
+		return "windows-1252" // ca, da, de, en, es, fi, fr, is, it, nl, no, pt, sv, id, eu, af, fo, ms, sw, gl
+	case 0x05, 0x0E, 0x15, 0x18, 0x1B, 0x1C, 0x24:
+		return "windows-1250" // cs, hu, pl, ro, sk, sq, sl
+	case 0x02, 0x19, 0x22, 0x23, 0x2F, 0x3F:
+		return "windows-1251" // bg, ru, uk, be, mk, kk
+	case 0x08:
+		return "windows-1253" // el
+	case 0x1F:
+		return "windows-1254" // tr
+	case 0x0D:
+		return "windows-1255" // he
+	case 0x01, 0x20, 0x29:
+		return "windows-1256" // ar, ur, fa
+	case 0x25, 0x26, 0x27:
+		return "windows-1257" // et, lv, lt
+	case 0x2A:
+		return "windows-1258" // vi
+	case 0x1E:
+		return "windows-874" // th
+	}
+	return ""
 }
 
 // msgFile reads an Outlook message.
@@ -311,6 +375,9 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 		p.label = codepageLabel(cp)
 	} else if cp, ok := p.int32(pidInternetCPID); ok {
 		p.label = codepageLabel(cp)
+		if lcid, ok := p.int32(pidMessageLocaleID); ok && cp == 65001 {
+			p.alt = localeCodepage(lcid)
+		}
 	}
 	line := func(s string) string { return clean.Line(s) }
 
@@ -331,7 +398,7 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 			break
 		}
 		rp := r.readProps(m, f, append(append([]string(nil), prefix...), name), 8)
-		rp.label = p.label
+		rp.label, rp.alt = p.label, p.alt
 		a := address(line(rp.str(pidDisplayName)), line(firstOf(rp.str(pidSMTPAddress), rp.str(pidEmailAddress))))
 		if a == "" {
 			continue
@@ -409,7 +476,7 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 	}
 
 	r.outlookBody(m, p)
-	r.outlookAttachments(m, f, prefix, p.label)
+	r.outlookAttachments(m, f, prefix, p.label, p.alt)
 	r.tail(m, headersAt)
 	r.doc.Parts = append(r.doc.Parts, m.part)
 }
@@ -516,7 +583,7 @@ func (r *reader) budget(m *message, data []byte) []byte {
 }
 
 // outlookAttachments reads the attachments.
-func (r *reader) outlookAttachments(m *message, f *cfb.File, prefix []string, label string) {
+func (r *reader) outlookAttachments(m *message, f *cfb.File, prefix []string, label, alt string) {
 	names, more := storages(f, prefix, "__attach_version1.0_")
 	if more {
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the message has more than %d attachments; the rest are not read", maxStorages))
@@ -527,7 +594,7 @@ func (r *reader) outlookAttachments(m *message, f *cfb.File, prefix []string, la
 		}
 		storage := append(append([]string(nil), prefix...), name)
 		ap := r.readProps(m, f, storage, 8)
-		ap.label = label
+		ap.label, ap.alt = label, alt
 		r.outlookAttachment(m, ap, "", func(file string, listed bool) {
 			r.embedded(m, f, append(storage, "__substg1.0_3701000D"), file, listed)
 		})

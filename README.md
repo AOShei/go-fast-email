@@ -68,6 +68,11 @@ The `charset` parameter the message gives a text part (from its
 `Extractor.Charset`, the transport-layer encoding: it wins over a
 `<meta>` declaration and loses only to a byte order mark.
 
+An attachment declared `application/octet-stream`, or with no type (as
+Outlook keeps many), is read by the extension of its name: `.eml`,
+`.msg`, `.htm`, `.html`, `.xhtml`, `.txt`, `.md` and `.rtf` as the types
+above. A declared type is never second-guessed.
+
 Every other attachment is listed with its name and size
 (`child.unsupported`). Core's depth limit applies. Only `cmd/gofastemail`
 imports go-fast-html and go-fast-rtf; the library package imports core
@@ -170,7 +175,14 @@ Standard does. KOI8-R, KOI8-U and the other ISO-8859 parts (2, 3, 4, 5, 6,
 mapping file was at hand. Text labelled US-ASCII, or not labelled, that is
 valid UTF-8 is read as UTF-8. Every other character set is not guessed at:
 bytes outside ASCII become U+FFFD and the part has a `text.unmapped_glyphs`
-warning that names the set. The tables' sources are in [`NOTICE`](NOTICE).
+warning that names the set (none when the text is all ASCII, since then
+nothing is lost). The tables' sources are in [`NOTICE`](NOTICE).
+
+In a `.msg`, 8-bit strings are read in `PR_MESSAGE_CODEPAGE`, else in
+`PR_INTERNET_CPID`. When that is UTF-8 and a string is not valid UTF-8,
+it is read in the ANSI code page of the message's locale
+(`PR_MESSAGE_LOCALE_ID`, by primary language: windows-1250 to 1258 or
+874), as Outlook writes them.
 
 ## What the file declares
 

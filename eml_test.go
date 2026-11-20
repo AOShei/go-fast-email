@@ -227,6 +227,18 @@ func TestCharsets(t *testing.T) {
 	}
 }
 
+// Text in a character set that is not decoded but that is all ASCII
+// loses nothing, so it has no warning (SpamAssassin spam 00040: a
+// charset=GB2312 body in plain ASCII).
+func TestUndecodedCharsetASCII(t *testing.T) {
+	msg := "From: a@example.com\nSubject: =?gb2312?b?YWI=?=\nContent-Type: text/plain; charset=GB2312\n\nPlain ASCII.\n"
+	doc := extract(t, msg, nil)
+	p := &doc.Parts[0]
+	if p.Blocks[0].Text != "ab" || p.Has(gofastcore.WarnTextUnmappedGlyphs) {
+		t.Errorf("blocks %q, warnings %+v", texts(p), p.Warnings)
+	}
+}
+
 func TestFlowedAndQuotes(t *testing.T) {
 	msg := "From: a@example.com\nContent-Type: text/plain; format=flowed\n\nA long \nline.\n\n> Quoted \n> text.\n"
 	doc := extract(t, msg, nil)

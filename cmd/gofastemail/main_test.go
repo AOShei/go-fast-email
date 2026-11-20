@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/AOShei/go-fast-core"
+	"github.com/AOShei/go-fast-email"
 	"github.com/AOShei/go-fast-email/internal/msgtest"
 )
 
@@ -161,6 +163,13 @@ func TestBodiesReadAsChildren(t *testing.T) {
 		// The charset only in the MIME header (or PR_INTERNET_CPID), none
 		// in the HTML: "\xcf\xf0\xe8\xe2\xe5\xf2" is windows-1251.
 		"cp1251.eml": []byte("From: a@example.com\nSubject: cp1251\nContent-Type: text/html; charset=windows-1251\n\n<p>\xcf\xf0\xe8\xe2\xe5\xf2</p>\n"),
+		// PR_INTERNET_CPID 950 must reach go-fast-html as a label it
+		// knows ("big5", not "cp950"): "\xa4\xa4\xa4\xe5" is Big5.
+		"big5.msg": msgtest.Build(msgtest.Msg{Props: []msgtest.Prop{
+			{ID: 0x0037, Value: "big5"},
+			{ID: 0x3FDE, Value: int32(950)},
+			{ID: 0x1013, Value: []byte("<p>\xa4\xa4\xa4\xe5</p>")},
+		}}),
 		"cp1251.msg": msgtest.Build(msgtest.Msg{Props: []msgtest.Prop{
 			{ID: 0x0037, Value: "cp1251"},
 			{ID: 0x3FDE, Value: int32(1251)},
@@ -175,6 +184,7 @@ func TestBodiesReadAsChildren(t *testing.T) {
 		"rtf.msg":    {"Outlook RTF body.", "[child 1"},
 		"cp1251.eml": {"\u041f\u0440\u0438\u0432\u0435\u0442"},
 		"cp1251.msg": {"\u041f\u0440\u0438\u0432\u0435\u0442"},
+		"big5.msg":   {"\u4e2d\u6587"},
 	}
 	for name, data := range files {
 		path := filepath.Join(dir, name)
@@ -224,6 +234,34 @@ func TestChildrenFlag(t *testing.T) {
 	}
 	if text := runText(t, html, "-format", "markdown"); !strings.Contains(text, "Only HTML.") || !strings.Contains(text, "<!-- child 1") {
 		t.Errorf("markdown:\n%s", text)
+	}
+}
+
+// An attachment declared application/octet-stream (or with no type), as
+// Outlook stores many (POI's attachment_test_msg.msg: pj1.txt;
+// lots-of-recipients.msg: an attached .eml), is read by the extractor its
+// file name's extension stands for; other types are not second-guessed.
+func TestDispatcherByExtension(t *testing.T) {
+	child := dispatcher(&gofastemail.Extractor{})
+	for _, c := range []struct{ name, mime, body, format string }{
+		{"pj1.txt", "application/octet-stream", "Plain text.", "txt"},
+		{"Fwd_ Note.EML", "application/octet-stream", "Subject: inner\n\nInner body.\n", "eml"},
+		{"page.htm", "", "<p>Page</p>", "html"},
+		{"notes.rtf", "application/octet-stream", "{\\rtf1 Notes}", "rtf"},
+	} {
+		doc, err := child(context.Background(), c.name, c.mime, strings.NewReader(c.body), int64(len(c.body)), &gofastcore.Options{})
+		if err != nil {
+			t.Errorf("%s: %v", c.name, err)
+			continue
+		}
+		if doc.Source.Format != c.format {
+			t.Errorf("%s: format %q, want %q", c.name, doc.Source.Format, c.format)
+		}
+	}
+	for _, c := range []struct{ name, mime string }{{"x.bin", "application/octet-stream"}, {"x.txt", "application/pdf"}} {
+		if _, err := child(context.Background(), c.name, c.mime, strings.NewReader("x"), 1, &gofastcore.Options{}); !errors.Is(err, gofastcore.ErrUnsupported) {
+			t.Errorf("%s %s: %v", c.name, c.mime, err)
+		}
 	}
 }
 

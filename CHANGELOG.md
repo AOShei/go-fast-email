@@ -2,6 +2,30 @@
 
 Not yet tagged.
 
+## Unreleased: the command against real mail
+
+- A `.msg` body's code page (`PR_INTERNET_CPID`, `PR_MESSAGE_CODEPAGE`) is
+  passed on by its WHATWG label (`windows-1251`, `shift_jis`, `gbk`,
+  `euc-kr`, `big5`, `iso-8859-N`, ...), not as `cpNNN`, which
+  go-fast-html did not know. go-fast-html pinned at `be5c679`.
+
+- The command was run over the 121 dev files of the public corpus (eml,
+  mbox, msg), text and JSON: every document validates, no child fails,
+  the whole run takes well under a second.
+- `cmd/gofastemail`: an attachment declared `application/octet-stream`,
+  or with no type, is read by its name's extension (`.eml`, `.msg`,
+  `.htm(l)`, `.xhtml`, `.txt`, `.md`, `.rtf`). An attached `.eml` and a
+  `.txt` in Outlook messages were listed, not read.
+- `.msg`: with no `PR_MESSAGE_CODEPAGE` and `PR_INTERNET_CPID` UTF-8, an
+  8-bit string that is not valid UTF-8 is read in the ANSI code page of
+  `PR_MESSAGE_LOCALE_ID` (POI's `ASCII_UTF-8_CP1252_LCID1031.msg` had
+  U+FFFD for `öäü`).
+- `text.unmapped_glyphs` for a character set that is not decoded is
+  given only when bytes were replaced, not for all-ASCII text.
+- New `cmd/gofastemail/corpus_test.go` (`TestCommandCorpus`): the
+  command's dispatcher over the dev corpus; fails on a panic, a timeout,
+  an invalid document or `child.failed`. Skipped without the corpus.
+
 ## Unreleased: children in the command
 
 - go-fast-core pinned at `787b056` (`RenderOptions.Children`).
