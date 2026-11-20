@@ -84,7 +84,7 @@ and text only; JSON always has everything.
 | Flag | Effect |
 |---|---|
 | `-furniture` | in Markdown and text, include running headers and footers |
-| `-stored` | in Markdown and text, include the stored part (data the file keeps but shows nowhere) |
+| `-stored[=kinds]` | in Markdown and text, include stored data (data the file keeps but shows nowhere): all of it (alone, `=true` or `=all`), or with =kinds only those kinds (`=markup_comment`, `=field_code,macro`; comma or `+`), wherever they are; `=false` or `=` turns it off, and a name that is not a kind is an error listing the kinds |
 | `-part-markers` | in Markdown and text, put a line before each part saying which part it is (here, each message) |
 | `-exclude-display[=reasons]` | in Markdown and text, leave out what the file declares not displayed: all of it (alone, `=true` or `=all`), or only the reasons named (`=hidden`, `=no_ink`, `=hidden,no_ink`); `=false` or `=` turns it off, and any other value is an error |
 | `-children` (default true) | in Markdown and text, include embedded documents (attachments, members), each after a line naming it; -children=false leaves them out |
@@ -95,6 +95,16 @@ body read by go-fast-html. With `-children`, core renders each child after
 the message's own parts, depth first, after a line naming it
 (`[child 1: report.rtf]` in text, `<!-- child 1: report.rtf -->` in
 Markdown); an HTML-only message's text is therefore in its child.
+
+The kinds `-stored` accepts are core's `gofastcore.StoredKindNames`,
+go-fast-html's `gofasthtml.StoredKindNames` (`manifest_item`,
+`stylesheet`) and go-fast-rtf's `generator` and `custom_property`
+(go-fast-rtf exports no list, so the command names them); this library
+defines none of its own. An HTML body's `<!-- comments -->` are stored
+`markup_comment` by go-fast-html: left out by default, shown with
+`-stored=markup_comment` or `-stored`. HTML that an Outlook message keeps
+encapsulated in RTF is handed on by go-fast-rtf as a `body.html` child,
+and its text comes from there.
 
 ## How a message maps
 

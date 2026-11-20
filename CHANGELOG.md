@@ -2,6 +2,21 @@
 
 Not yet tagged.
 
+## Unreleased: stored kinds (branch stored-kinds)
+
+- Pins go-fast-core `ebecf3c`, go-fast-html `af97571`, go-fast-rtf
+  `259ac69`.
+- `-stored[=kinds]`: given alone, as `=true` or `=all`, every kind
+  (`Stored`); `=false` or `=` none; `=k1,k2` (comma or `+`) those kinds
+  (`StoredKinds`); any other name is an error listing the kinds, exit
+  status 2. The kinds are core's, go-fast-html's and go-fast-rtf's
+  (`generator`, `custom_property`).
+- HTML comments in bodies are now stored `markup_comment` (go-fast-html):
+  not in default text, shown with `-stored=markup_comment`.
+- HTML encapsulated in an Outlook message's RTF body is read as a
+  `body.html` child (go-fast-rtf): `poi-message_1979.msg` and
+  `poi-message_1980.msg` give their text from the HTML, with no U+FFFD.
+
 ## Unreleased: double-byte character sets (branch dbcs)
 
 - `internal/charset` decodes Shift_JIS (cp932), GBK/GB2312 (cp936),

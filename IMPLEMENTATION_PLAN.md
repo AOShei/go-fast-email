@@ -2,9 +2,9 @@
 
 Module `github.com/AOShei/go-fast-email`, package `gofastemail`. Extracts
 `.eml`, `.mbox` and Outlook `.msg` into `gofastcore.Document` (core pinned at
-commit 787b056, schema 0.2). The library: standard library and go-fast-core
-only. The command also imports go-fast-html (be5c679) and go-fast-rtf
-(b756076), to read HTML and RTF bodies and attachments as children.
+commit ebecf3c, schema 0.2). The library: standard library and go-fast-core
+only. The command also imports go-fast-html (af97571) and go-fast-rtf
+(259ac69), to read HTML and RTF bodies and attachments as children.
 
 **Display (declared, not judged; Andrew, 2026-11-20, supersedes runs 3 and
 4).** The library reports only what a file declares about display, and
@@ -74,7 +74,8 @@ no `HiddenChecked`, no hidden warnings. See
 | 11. children | core 787b056 (`RenderOptions.Children`); command dispatcher reads HTML/XHTML/Markdown/plain text with go-fast-html fc557a8 (a text part's MIME charset passed as `Extractor.Charset`) and RTF with go-fast-rtf b756076; `-children` (default true); imports test allows them in `cmd/` only; `TestBodiesReadAsChildren`, `TestChildrenFlag` | done |
 | realworld-1 | command over the dev corpus (121 files, text and JSON): attachments of type octet-stream or none read by extension; `.msg` 8-bit strings that are not UTF-8 under a UTF-8 `PR_INTERNET_CPID` read in the locale's ANSI code page; no unmapped-glyphs warning for all-ASCII text in an undecoded set; `TestCommandCorpus` | done |
 | 12. double-byte sets | Shift_JIS, GBK/GB2312, EUC-KR, Big5 decoded everywhere this library decodes (decoder and tables from go-fast-html `be5c679`); `FuzzDecodeDBCS` | done |
-| 13. next | see below | todo |
+| 13. stored kinds | core ebecf3c (`RenderOptions.StoredKinds`, `StoredKindNames`), go-fast-html af97571 (comments stored `markup_comment`), go-fast-rtf 259ac69 (encapsulated HTML as `body.html`); `-stored[=kinds]` accepting core's, go-fast-html's and go-fast-rtf's kinds; `TestStoredFlag`, `TestStoredUnknownKind`, `TestStoredMarkupComment` | done |
+| 14. next | see below | todo |
 
 ## Next (in order)
 
