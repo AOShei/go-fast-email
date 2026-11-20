@@ -12,6 +12,7 @@ import (
 
 	"github.com/AOShei/go-fast-core"
 	"github.com/AOShei/go-fast-html"
+	"github.com/AOShei/go-fast-rtf"
 )
 
 // Every row of COMMAND_FLAGS.md's -stored table.
@@ -46,7 +47,7 @@ func TestStoredFlag(t *testing.T) {
 		}
 	}
 	// Every kind of core, go-fast-html and go-fast-rtf is accepted.
-	for _, k := range append(append(slices.Clone(gofastcore.StoredKindNames), gofasthtml.StoredKindNames...), "generator", "custom_property") {
+	for _, k := range append(append(slices.Clone(gofastcore.StoredKindNames), gofasthtml.StoredKindNames...), gofastrtf.StoredKindNames...) {
 		var s storedFlag
 		if err := s.Set(k); err != nil {
 			t.Errorf("Set(%q): %v", k, err)

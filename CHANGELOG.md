@@ -2,6 +2,14 @@
 
 Not yet tagged.
 
+## Unreleased: newer go-fast-html and go-fast-rtf in the command
+
+- The command pins go-fast-html `bad19e7` (Big5 with HKSCS, `iframe
+  srcdoc` read in place) and go-fast-rtf `1e98beb` (encapsulated-HTML
+  review fixes, Word's horizontal line as a declared break, no inferred
+  breaks), and takes go-fast-rtf's stored kinds from its exported
+  `StoredKindNames` instead of naming them itself.
+
 ## Unreleased: GB18030, EUC-JP and ISO-2022-JP (branch cjk-more)
 
 - `internal/charset` decodes GB18030 (with four-byte sequences and
