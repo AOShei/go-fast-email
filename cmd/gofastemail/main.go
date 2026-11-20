@@ -10,9 +10,12 @@
 // goes to standard error, and the exit status is 1 if any input could not
 // be read.
 //
-// Messages attached to a message are extracted too. Other attachments,
-// and HTML and RTF bodies, are listed: this command has no extractor for
-// their formats. A program that has one passes it as Options.Child.
+// Embedded documents are extracted too: attached messages by this
+// library, HTML, XHTML, Markdown and plain text bodies and attachments by
+// go-fast-html, RTF ones by go-fast-rtf. Other attachments are listed.
+// Markdown and text include them, each after a line naming it, unless
+// -children=false. The library itself reads none of these formats: a
+// program passes its own Options.Child.
 package main
 
 import (
@@ -24,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -34,6 +38,8 @@ import (
 
 	"github.com/AOShei/go-fast-core"
 	"github.com/AOShei/go-fast-email"
+	"github.com/AOShei/go-fast-html"
+	"github.com/AOShei/go-fast-rtf"
 )
 
 func main() {
@@ -95,6 +101,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		furniture  = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
 		stored     = flags.Bool("stored", false, "in Markdown and text, include the stored part (data the file keeps but shows nowhere)")
 		markers    = flags.Bool("part-markers", false, "in Markdown and text, put a line before each part saying which part it is (here, each message)")
+		children   = flags.Bool("children", true, "in Markdown and text, include embedded documents (attachments, members), each after a line naming it; -children=false leaves them out")
 	)
 	var exclude displayFlag
 	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares not displayed: all of it, or with =reasons only those reasons (hidden, no_ink); JSON always has everything")
@@ -139,13 +146,23 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		opts.Parts = gofastcore.PartRange{First: a, Last: b}
 	}
 	extractor := &gofastemail.Extractor{MaxMessageBytes: *maxMessage}
-	// A message attached to a message is read too; nothing else is.
-	opts.Child = func(ctx context.Context, name, mime string, r io.ReaderAt, size int64, o *gofastcore.Options) (*gofastcore.Document, error) {
-		switch strings.ToLower(mime) {
+	// Attached messages are read by this library, HTML, Markdown and plain
+	// text by go-fast-html, RTF by go-fast-rtf; everything else is listed.
+	// Core's depth limit applies through ExtractChild.
+	opts.Child = func(ctx context.Context, name, mimeType string, r io.ReaderAt, size int64, o *gofastcore.Options) (*gofastcore.Document, error) {
+		switch mediaType(mimeType) {
 		case "message/rfc822", "message/global", "application/vnd.ms-outlook":
 			return extractor.Extract(ctx, r, size, o)
+		case "text/html", "application/xhtml+xml":
+			return (&gofasthtml.Extractor{Format: "html"}).Extract(ctx, r, size, o)
+		case "text/markdown":
+			return (&gofasthtml.Extractor{Format: "md"}).Extract(ctx, r, size, o)
+		case "text/plain":
+			return (&gofasthtml.Extractor{Format: "txt"}).Extract(ctx, r, size, o)
+		case "application/rtf", "text/rtf":
+			return (&gofastrtf.Extractor{}).Extract(ctx, r, size, o)
 		}
-		return nil, fmt.Errorf("gofastemail: no extractor for %q: %w", mime, gofastcore.ErrUnsupported)
+		return nil, fmt.Errorf("gofastemail: no extractor for %q: %w", mimeType, gofastcore.ErrUnsupported)
 	}
 
 	var inputs []string
@@ -199,6 +216,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		Stored:         *stored,
 		PartMarkers:    *markers,
 		ExcludeDisplay: exclude.reasons,
+		Children:       *children,
 	}
 
 	written := 0
@@ -285,6 +303,16 @@ func remarks(doc *gofastcore.Document) string {
 		}
 	}
 	return "warnings: " + strings.Join(codes, ", ")
+}
+
+// mediaType is the media type of a MIME type, without its parameters, in
+// lower case.
+func mediaType(v string) string {
+	if t, _, err := mime.ParseMediaType(v); err == nil {
+		return t
+	}
+	t, _, _ := strings.Cut(v, ";")
+	return strings.ToLower(strings.TrimSpace(t))
 }
 
 // moduleVersion is the version this command was built from.

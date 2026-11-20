@@ -42,16 +42,24 @@ func imports(t *testing.T, dir string) map[string][]string {
 	return out
 }
 
-// The module depends on the standard library and go-fast modules only.
+// The library's packages depend on the standard library and go-fast-core
+// only. The command, and nothing else, may also import go-fast-html and
+// go-fast-rtf, to read HTML and RTF bodies and attachments as children.
 func TestImportsStandardLibraryAndGoFastOnly(t *testing.T) {
 	files := imports(t, ".")
 	if len(files) < 15 {
 		t.Fatalf("only %d files were checked", len(files))
 	}
+	within := func(p, module string) bool { return p == module || strings.HasPrefix(p, module+"/") }
 	for file, paths := range files {
+		command := strings.HasPrefix(filepath.ToSlash(file), "cmd/")
 		for _, p := range paths {
 			first, _, _ := strings.Cut(p, "/")
-			if strings.Contains(first, ".") && !strings.HasPrefix(p, "github.com/AOShei/go-fast-") {
+			switch {
+			case !strings.Contains(first, "."):
+			case within(p, "github.com/AOShei/go-fast-core"), within(p, "github.com/AOShei/go-fast-email"):
+			case command && (within(p, "github.com/AOShei/go-fast-html") || within(p, "github.com/AOShei/go-fast-rtf")):
+			default:
 				t.Errorf("%s imports %q", file, p)
 			}
 		}

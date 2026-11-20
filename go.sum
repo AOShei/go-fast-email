@@ -1,2 +1,6 @@
-github.com/AOShei/go-fast-core v0.0.0-20261120081927-05bbddb16b9f h1:lWI15x1q5NZGl6bbdwWn5KKLXo1uJyPyy3/sdOlk11o=
-github.com/AOShei/go-fast-core v0.0.0-20261120081927-05bbddb16b9f/go.mod h1:tb4zS0fiQj3cajROZQXB/R4gwiklGWMTNUb+rHbk28M=
+github.com/AOShei/go-fast-core v0.0.0-20261120105453-787b0567ad0e h1:nNzXleGnIayNMWJTttzJgPiGCSOlujpS5TOkNb8xpVE=
+github.com/AOShei/go-fast-core v0.0.0-20261120105453-787b0567ad0e/go.mod h1:tb4zS0fiQj3cajROZQXB/R4gwiklGWMTNUb+rHbk28M=
+github.com/AOShei/go-fast-html v0.0.0-20261120110314-df1487863872 h1:hexaqnaInny4jEkYSYXqoQ6eL+RVmOXJWkyMjgDh1Uw=
+github.com/AOShei/go-fast-html v0.0.0-20261120110314-df1487863872/go.mod h1:FfUCQu2RZBgHgYdPeLnSA9z15paJZEkJEZ1oR3l8G3Q=
+github.com/AOShei/go-fast-rtf v0.0.0-20261120110323-b756076b6f4f h1:j2mDm1NETmxwfC0DbbS9ouOAbh8kNaBjwSqZ+muQRIQ=
+github.com/AOShei/go-fast-rtf v0.0.0-20261120110323-b756076b6f4f/go.mod h1:YiG0DawvvJfMBeuFbBw80LMryoZ8MAs3paEOB2shHEA=
