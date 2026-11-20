@@ -72,14 +72,17 @@ no `HiddenChecked`, no hidden warnings. See
 | 9. declared, not judged | core 05bbddb (schema 0.2); no display reason; outlier rule, header lists, token stripping, `HiddenChecked`, metadata scan, `-exclude-hidden` removed; R6 test; corpus fails on any reason; `BenchmarkExtract` | done |
 | 10. command flags | `-furniture`, `-stored`, `-exclude-display` added beside `-part-markers`, as `COMMAND_FLAGS.md` (decided 2026-11-20); `TestDisplayFlag`, `TestRenderFlags` | done |
 | 11. children | core 787b056 (`RenderOptions.Children`); command dispatcher reads HTML/XHTML/Markdown/plain text with go-fast-html fc557a8 (a text part's MIME charset passed as `Extractor.Charset`) and RTF with go-fast-rtf b756076; `-children` (default true); imports test allows them in `cmd/` only; `TestBodiesReadAsChildren`, `TestChildrenFlag` | done |
+| realworld-1 | command over the dev corpus (121 files, text and JSON): attachments of type octet-stream or none read by extension; `.msg` 8-bit strings that are not UTF-8 under a UTF-8 `PR_INTERNET_CPID` read in the locale's ANSI code page; no unmapped-glyphs warning for all-ASCII text in an undecoded set; `TestCommandCorpus` | done |
 | 12. next | see below | todo |
 
 ## Next (in order)
 
-1. Check against real mail: messages from Thunderbird, Outlook, Gmail and
-   Apple Mail exports, a real .msg and a real winmail.dat (synthetic
-   fixtures only so far; the TNEF property encoding was written from
-   [MS-OXTNEF] as remembered, with no copy of the spec at hand).
+1. Check against real mail: the dev corpus has been run through the
+   command (realworld-1); still missing are Gmail and Apple Mail exports
+   and a real winmail.dat (the TNEF property encoding was written from
+   [MS-OXTNEF] as remembered, with no copy of the spec at hand). Charsets
+   seen in the corpus and not decoded: gb18030/GB2312 headers and bodies,
+   Big5 (cp950) in a .msg, `unknown-8bit`.
 2. Run 3 added windows-874, 1250-1258 and Mac Roman (tables copied from
    go-fast-rtf, verified there against Python's codecs), and ISO-8859-9/-11
    by the WHATWG aliases. Still not decoded: KOI8-R/U and ISO-8859-2 to -8,
