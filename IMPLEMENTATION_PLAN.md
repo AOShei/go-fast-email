@@ -77,6 +77,14 @@ no `HiddenChecked`, no hidden warnings. See
 
 ## Next (in order)
 
+0. Double-byte sets (branch `dbcs`): the decoder and labels are in;
+   generate the four tables into `internal/charset/tables` (`python3
+   internal/charset/gen/gen_dbcs.py internal/charset/tables`, or copy
+   go-fast-html `be5c679` `internal/charset/cp9NN.txt`, which are the same
+   output), check them with `cmp` against go-fast-html's, run `go test
+   -short ./...` (the DBCS tests then run instead of skipping, including
+   the dev corpus file `tika-testMSG_chinese.msg`), and commit them.
+
 1. Check against real mail: the dev corpus has been run through the
    command (realworld-1); still missing are Gmail and Apple Mail exports
    and a real winmail.dat (the TNEF property encoding was written from

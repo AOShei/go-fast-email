@@ -178,6 +178,20 @@ bytes outside ASCII become U+FFFD and the part has a `text.unmapped_glyphs`
 warning that names the set (none when the text is all ASCII, since then
 nothing is lost). The tables' sources are in [`NOTICE`](NOTICE).
 
+The double-byte code pages are decoded when their generated tables are in
+`internal/charset/tables` (see the `README.txt` there; this branch does
+not yet contain them): Shift_JIS (code page 932; labels `shift_jis`,
+`sjis`, `ms932`, `windows-31j`, `x-sjis`, `csshiftjis`, `ms_kanji`), GBK
+and GB2312 (936; `gbk`, `gb2312`, `chinese`, `csgb2312`, `gb_2312-80`,
+`iso-ir-58`, `x-gbk`, `cp936`), EUC-KR (949; `euc-kr`, `ks_c_5601-1987`,
+`windows-949`, `cseuckr`, `korean`, `cp949`) and Big5 (950; `big5`,
+`big5-hkscs`, `cn-big5`, `csbig5`, `x-x-big5`, `cp950`), in headers,
+encoded words, text/plain bodies and the 8-bit strings of `.msg` and TNEF
+by their code page. A lead byte without a valid trail byte, or at the end
+of the text, is U+FFFD with the warning above. GB18030 (including its
+four-byte sequences), ISO-2022-JP, EUC-JP and KOI8 are not decoded and
+keep the warning.
+
 In a `.msg`, 8-bit strings are read in `PR_MESSAGE_CODEPAGE`, else in
 `PR_INTERNET_CPID`. When that is UTF-8 and a string is not valid UTF-8,
 it is read in the ANSI code page of the message's locale
@@ -271,7 +285,7 @@ told apart.
   `message/external-body` (passed on as embedded documents, never fetched).
 - Outlook named properties (`__nameid_version1.0`), multi-valued
   properties, and the CRC of compressed RTF.
-- Character sets other than those above, including all multi-byte ones
-  other than UTF-8 and UTF-16.
+- Character sets other than those above, including GB18030, ISO-2022-JP,
+  EUC-JP and KOI8.
 - Byte offsets (`Loc`) for blocks: bodies are decoded before they become
   blocks, so offsets into the file would not be meaningful.
