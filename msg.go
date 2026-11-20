@@ -235,6 +235,9 @@ func (r *reader) msgFile(src io.ReaderAt, size int64) (*gofastcore.Document, err
 	}
 	r.doc = gofastcore.New("msg")
 	r.doc.Source = gofastcore.Source{Format: "msg", Name: r.opts.Name, MIME: "application/vnd.ms-outlook", Size: size}
+	if f.Damaged != "" {
+		r.doc.Warn(gofastcore.SeverityError, gofastcore.WarnInputRepaired, "the compound file's short streams cannot be read ("+clean.Line(f.Damaged)+"); the properties stored in them are missing")
+	}
 	r.outlook(f, nil, 32)
 	if err := r.ctx.Err(); err != nil {
 		return nil, err
@@ -363,7 +366,7 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 				continue
 			}
 			if !isShown(k) {
-				unshown = append(unshown, headerField{clean.Line(fl.Name) + ": " + v, v})
+				unshown = append(unshown, headerField{clean.Line(fl.Name), clean.Line(fl.Name) + ": " + v, v})
 			}
 			if old, dup := extra[k]; dup {
 				v = old + "\n" + v

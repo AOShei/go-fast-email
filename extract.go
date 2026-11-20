@@ -53,7 +53,10 @@ const (
 //	                      characters outside its alphabet
 //	text.hidden           invisible characters in text or metadata, and
 //	                      unshown data out of proportion for its kind
-//	                      (see WarnUnshownOutlier)
+//	text.unshown_outlier  a header, preamble or epilogue that no mail
+//	                      program shows is out of proportion by core's
+//	                      rule (gofastcore.UnshownOutlier); it is a note
+//	                      flagged invisible
 const (
 	// WarnAlternatives: the message has alternative bodies
 	// (multipart/alternative). The blocks are the text/plain alternative;
@@ -64,20 +67,7 @@ const (
 	// other than base64, quoted-printable, 7bit, 8bit or binary. Its bytes
 	// are taken as they are.
 	WarnUnknownTransferEncoding = "email.unknown_transfer_encoding"
-	// WarnUnshownOutlier: data a mail program does not show (a header, the
-	// preamble or epilogue of a multipart body) holds more than
-	// UnshownOutlierWords words. Such data is routine and not flagged;
-	// this item is out of proportion for its kind, and is a note flagged
-	// invisible.
-	WarnUnshownOutlier = "email.unshown_outlier"
 )
-
-// UnshownOutlierWords is how many words an item of unshown data may hold
-// before it is out of proportion for its kind and flagged: a header, or a
-// preamble or epilogue, of more words is flagged invisible. Words are
-// counted as prose has them (runs of letters), so that the addresses,
-// ids and parameters of trace and authentication headers do not count.
-const UnshownOutlierWords = 30
 
 // Extractor extracts email: a single message (.eml), a mailbox (.mbox) and
 // an Outlook message (.msg). The zero value is ready to use and safe for

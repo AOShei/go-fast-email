@@ -13,6 +13,21 @@ import (
 	"github.com/AOShei/go-fast-email/internal/msgtest"
 )
 
+// A compound file whose short-stream table cannot be followed is read
+// without its short streams, with input.repaired, not refused.
+func TestMsgDamagedShortStreams(t *testing.T) {
+	data := outlookMessage()
+	binary.LittleEndian.PutUint32(data[60:], 0x7FFFFFF0) // first sector of the short-stream table
+	doc, err := gofastemail.Extract(context.Background(), bytes.NewReader(data), int64(len(data)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkDoc(t, doc)
+	if !hasWarning(doc, gofastcore.WarnInputRepaired) || len(doc.Parts) != 1 {
+		t.Fatalf("warnings %+v", doc.Warnings)
+	}
+}
+
 // rtfLiteral is compressed RTF of literal bytes only ([MS-OXRTFCP]),
 // ended by a reference to the dictionary's write position.
 func rtfLiteral(text string) []byte {

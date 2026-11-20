@@ -19,9 +19,10 @@ commit 031432a). Standard library and go-fast modules only.
 - Every other header (X-*, Received, Reply-To, Message-ID, MIME headers, the
   mbox `From ` line) is, in a mailbox, a `note` block with
   `Attrs["type"]="headers"`, not flagged (run 3, user decision of
-  2026-11-20: routine unshown data is not a signal). A header of more than
-  `UnshownOutlierWords` (30) prose words is a note of its own, flagged
-  `invisible`, with `email.unshown_outlier`, in any message.
+  2026-11-20: routine unshown data is not a signal). A header that is an
+  outlier by core's `gofastcore.UnshownOutlier` (run 4: > 30 words or
+  > 300 characters; machine headers exempted by name, see README) is a note
+  of its own, flagged `invisible`, with `text.unshown_outlier`.
 - For a single message, all headers are also in `Metadata.Extra` (lowercase
   names, repeated headers joined with `\n`); `Title` is the subject, `Authors`
   the From header verbatim, `Created` the Date.
@@ -33,8 +34,9 @@ commit 031432a). Standard library and go-fast modules only.
 - multipart/alternative: the first text/plain alternative gives the blocks;
   the others are children; warning `email.alternatives` (severity warning).
 - MIME preamble and epilogue text (never shown) is a `note` block of type
-  `mime_preamble` / `mime_epilogue`, not flagged unless it holds more than
-  30 prose words (then `invisible` and `email.unshown_outlier`).
+  `mime_preamble` / `mime_epilogue`, not flagged unless an outlier by core's
+  rule once links and rules are left out (then `invisible` and
+  `text.unshown_outlier`).
 
 - For a single message (.eml, .msg) the headers that are not shown go to
   `Metadata.Extra` only (no block). In an mbox they are the `note` block above,
@@ -60,7 +62,8 @@ commit 031432a). Standard library and go-fast modules only.
 | 5. README | what is read, mapping, warnings, hidden reasons, limits, what is not read | done |
 | 6. run 2 | image blocks for pictures shown in a message; TNEF (winmail.dat) read as an embedded document of format `tnef` (internal/tnef); `input.external_reference` for message/external-body; base64 without a copy of the input; imports, source-hygiene and API-snapshot tests | done |
 | 7. run 3: hidden signal | core pinned at 4de43b1; routine unshown data (headers, preamble, epilogue) unflagged; outliers (> 30 prose words) flagged with `email.unshown_outlier`; clean-message and outlier tests | done |
-| 8. next | see below | todo |
+| 8. run 4: core outlier rule, corpus | core pinned at 17a0e50; `gofastcore.UnshownOutlier` and `text.unshown_outlier` replace the library's own; machine headers exempted by name; `corpus_test.go` over dev/heldout eml, mbox, msg; compound files with damaged short streams read with `input.repaired` | done |
+| 9. next | see below | todo |
 
 ## Next (in order)
 

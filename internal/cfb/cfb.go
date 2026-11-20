@@ -76,6 +76,9 @@ type File struct {
 	entries    []entry
 	miniCutoff int64
 	mini       *Stream // the stream that holds the short streams
+	// Damaged is set, to what was wrong, when the short streams could not
+	// be read: the file is read without them.
+	Damaged string
 }
 
 // Open reads the structure of the compound file of the given size in r:
@@ -196,14 +199,19 @@ func Open(r io.ReaderAt, size int64) (*File, error) {
 	// Short streams: their sectors are cut from one stream, which the
 	// root entry names, and chained by a table of their own.
 	root := &f.entries[0]
+	// A damaged container or table loses the short streams only: the file
+	// is read without them, and Damaged says so (partial results beat
+	// errors).
 	if root.size > 0 && root.start <= maxRegular {
 		f.mini, err = f.stream(root.start, root.size, false)
 		if err != nil {
-			return nil, fmt.Errorf("%w (short-stream container)", err)
+			f.mini, f.Damaged = nil, fmt.Sprintf("%v (short-stream container)", err)
+			return f, nil
 		}
 		table, err := f.chain(firstMiniFAT, int64(miniFATSectors)*sectorSize)
 		if err != nil {
-			return nil, fmt.Errorf("%w (short-stream table)", err)
+			f.mini, f.Damaged = nil, fmt.Sprintf("%v (short-stream table)", err)
+			return f, nil
 		}
 		f.miniFAT = make([]uint32, 0, len(table)*int(perSector))
 		for _, n := range table {
