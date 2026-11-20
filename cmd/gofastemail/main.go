@@ -32,6 +32,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -83,6 +84,61 @@ func (h *displayFlag) Set(v string) error {
 	return nil
 }
 
+// storedFlag is -stored: given alone (or =true, =all) it stands for every
+// kind of stored data, and with =k1,k2 (or k1+k2) for the kinds named.
+type storedFlag struct {
+	all   bool
+	kinds []string
+}
+
+func (s *storedFlag) IsBoolFlag() bool { return true }
+func (s *storedFlag) String() string {
+	if s == nil {
+		return ""
+	}
+	if s.all {
+		return "all"
+	}
+	return strings.Join(s.kinds, ",")
+}
+
+// storedKinds is every kind -stored accepts. This library writes no kind
+// of its own; the command renders documents from go-fast-html and
+// go-fast-rtf too, so their kinds are accepted. go-fast-rtf exports no
+// list: "generator" and "custom_property" are the kinds its reader writes
+// (internal/reader/meta.go at the pinned commit, and its command's list).
+func storedKinds() []string {
+	kinds := append([]string(nil), gofastcore.StoredKindNames...)
+	kinds = append(kinds, gofasthtml.StoredKindNames...)
+	return append(kinds, "generator", "custom_property")
+}
+
+func (s *storedFlag) Set(v string) error {
+	switch v {
+	case "true", "all":
+		s.all, s.kinds = true, nil
+		return nil
+	case "false", "":
+		s.all, s.kinds = false, nil
+		return nil
+	}
+	known := storedKinds()
+	var kinds []string
+	for _, k := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == '+' }) {
+		if !slices.Contains(known, k) {
+			return fmt.Errorf("unknown kind %q; the kinds are %s", k, strings.Join(known, ", "))
+		}
+		if !slices.Contains(kinds, k) {
+			kinds = append(kinds, k)
+		}
+	}
+	if len(kinds) == 0 {
+		return fmt.Errorf("no kind in %q; the kinds are %s", v, strings.Join(known, ", "))
+	}
+	s.all, s.kinds = false, kinds
+	return nil
+}
+
 // run is the command: it reads args and writes documents to stdout and
 // messages to stderr, and returns the exit status.
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
@@ -99,10 +155,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		quiet      = flags.Bool("quiet", false, "say nothing about files that were read; failures are still reported")
 		version    = flags.Bool("version", false, "print the version and exit")
 		furniture  = flags.Bool("furniture", false, "in Markdown and text, include running headers and footers")
-		stored     = flags.Bool("stored", false, "in Markdown and text, include the stored part (data the file keeps but shows nowhere)")
 		markers    = flags.Bool("part-markers", false, "in Markdown and text, put a line before each part saying which part it is (here, each message)")
 		children   = flags.Bool("children", true, "in Markdown and text, include embedded documents (attachments, members), each after a line naming it; -children=false leaves them out")
 	)
+	var stored storedFlag
+	flags.Var(&stored, "stored", "in Markdown and text, include stored data (data the file keeps but shows nowhere): all of it, or with =kinds only those kinds (such as markup_comment, field_code, macro)")
 	var exclude displayFlag
 	flags.Var(&exclude, "exclude-display", "in Markdown and text, leave out what the file declares not displayed: all of it, or with =reasons only those reasons (hidden, no_ink); JSON always has everything")
 	flags.Usage = func() {
@@ -196,7 +253,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	// The same options render every document this command prints.
 	render := &gofastcore.RenderOptions{
 		Furniture:      *furniture,
-		Stored:         *stored,
+		Stored:         stored.all,
+		StoredKinds:    stored.kinds,
 		PartMarkers:    *markers,
 		ExcludeDisplay: exclude.reasons,
 		Children:       *children,
