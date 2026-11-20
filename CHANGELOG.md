@@ -2,6 +2,11 @@
 
 Not yet tagged.
 
+## Unreleased: core d4cd8e2
+
+- go-fast-core pinned at `d4cd8e2`: `Validate` now rejects an inferred
+  `thematic_break`; this library emits only declared ones and passes.
+
 ## Unreleased: newer go-fast-html and go-fast-rtf in the command
 
 - The command pins go-fast-html `bad19e7` (Big5 with HKSCS, `iframe
