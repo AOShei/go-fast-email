@@ -33,7 +33,7 @@ This file belongs at the workspace root as `DECLARED_REPORT_EMAIL.md`. Writing o
 - The machine-token and link stripping, and the comment splitting for `Received`-style headers.
 - The preamble and epilogue filtering.
 - The warnings `text.unshown_outlier` and `text.hidden`.
-- The scan of metadata for invisible characters, `HiddenChecked`, and the command's `-exclude-hidden` flag. Nothing the command extracts can carry a reason.
+- The scan of metadata for invisible characters, `HiddenChecked`, and the command's `-exclude-hidden` flag. Nothing the command extracts can carry a reason. (The command now has `-exclude-display` with the other shared flags; see "Follow-up decisions".)
 
 **Removed tests:** `TestUnshownOutliers` and `TestUnshownOutliersByLength`, and the old `TestHiddenInHeaders`, which now only tests control characters.
 

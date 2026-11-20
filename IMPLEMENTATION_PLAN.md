@@ -68,7 +68,8 @@ no `HiddenChecked`, no hidden warnings. See
 | 8. run 4: core outlier rule, corpus | core's outlier rule and machine-header exemptions (superseded by 9); `corpus_test.go` over dev/heldout eml, mbox, msg; compound files with damaged short streams read with `input.repaired` (kept) | partly removed |
 | review-1 | independent review: decode budget for every property read, header joins, encoded-word search bound, mbox Content-Length scan, cfb child index, ligatures in header notes | done |
 | 9. declared, not judged | core 05bbddb (schema 0.2); no display reason; outlier rule, header lists, token stripping, `HiddenChecked`, metadata scan, `-exclude-hidden` removed; R6 test; corpus fails on any reason; `BenchmarkExtract` | done |
-| 10. next | see below | todo |
+| 10. command flags | `-furniture`, `-stored`, `-exclude-display` added beside `-part-markers`, as `COMMAND_FLAGS.md` (decided 2026-11-20); `TestDisplayFlag`, `TestRenderFlags` | done |
+| 11. next | see below | todo |
 
 ## Next (in order)
 

@@ -2,6 +2,15 @@
 
 Not yet tagged.
 
+## Unreleased: command flags
+
+- `cmd/gofastemail` has the shared render flags of the go-fast commands
+  (decided 2026-11-20): `-furniture`, `-stored` and
+  `-exclude-display[=reasons]` beside `-part-markers`, with the same
+  names, values and help text as the other commands. `-part-markers`
+  now has the shared help text. Markdown and text only; JSON is
+  unchanged.
+
 ## Unreleased: declared, not judged (breaking)
 
 - go-fast-core pinned at `05bbddb`: schema `0.2`. `Hidden` is now

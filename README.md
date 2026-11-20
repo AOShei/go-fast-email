@@ -52,6 +52,21 @@ go run ./cmd/gofastemail -format markdown message.eml
 
 It extracts attached messages and lists every other attachment.
 
+It has the render flags every go-fast command has. They change Markdown
+and text only; JSON always has everything.
+
+| Flag | Effect |
+|---|---|
+| `-furniture` | in Markdown and text, include running headers and footers |
+| `-stored` | in Markdown and text, include the stored part (data the file keeps but shows nowhere) |
+| `-part-markers` | in Markdown and text, put a line before each part saying which part it is (here, each message) |
+| `-exclude-display[=reasons]` | in Markdown and text, leave out what the file declares not displayed: all of it (alone, `=true` or `=all`), or only the reasons named (`=hidden`, `=no_ink`, `=hidden,no_ink`); `=false` or `=` turns it off, and any other value is an error |
+
+This library itself produces no running headers, stored part or display
+reason; the flags matter for documents that carry them. The command
+prints Markdown and text of the top-level document only; children
+(attached messages) appear in the JSON.
+
 ## How a message maps
 
 Every message is a part of kind `message`. An `.eml` or `.msg` is a
