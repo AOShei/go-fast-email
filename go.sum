@@ -1,6 +1,6 @@
-github.com/AOShei/go-fast-core v0.0.0-20261120130045-ebecf3cf2089 h1:4/UneIT7DV8557yK9iI4MMAbNrAbnM59sem7uttboUI=
-github.com/AOShei/go-fast-core v0.0.0-20261120130045-ebecf3cf2089/go.mod h1:tb4zS0fiQj3cajROZQXB/R4gwiklGWMTNUb+rHbk28M=
-github.com/AOShei/go-fast-html v0.0.0-20261120131233-af975715a6b5 h1:fsbUQVqB7urIeJD8N4lvDNX0YuUPM4qSZjCK4wY2htw=
-github.com/AOShei/go-fast-html v0.0.0-20261120131233-af975715a6b5/go.mod h1:i6ANqb13bPxfAM7E0vs05+/n1Xpaci+CO/sNDGe11ow=
-github.com/AOShei/go-fast-rtf v0.0.0-20261120131132-259ac698921b h1:Vbp6MiYHUO44m4dCOuOYNMc1jYzz8mX98la64xQzVtY=
-github.com/AOShei/go-fast-rtf v0.0.0-20261120131132-259ac698921b/go.mod h1:ctx3wPZd2xAZ8u9YWlxigIXXkHU4n/TIPpyvcq1f//k=
+github.com/AOShei/go-fast-core v0.0.0-20261120143830-d4cd8e285190 h1:PVKhme02XaoejmLEpEDjbbeHkwI0r8Zu6nuEnGe7UY8=
+github.com/AOShei/go-fast-core v0.0.0-20261120143830-d4cd8e285190/go.mod h1:tb4zS0fiQj3cajROZQXB/R4gwiklGWMTNUb+rHbk28M=
+github.com/AOShei/go-fast-html v0.0.0-20261120141127-bad19e77170c h1:U8gK7gSXa7wWTZmhCY/VDQXfBPU0ForScQyMX2NQg0g=
+github.com/AOShei/go-fast-html v0.0.0-20261120141127-bad19e77170c/go.mod h1:i6ANqb13bPxfAM7E0vs05+/n1Xpaci+CO/sNDGe11ow=
+github.com/AOShei/go-fast-rtf v0.0.0-20261120141202-1e98beb8caa1 h1:z44poXsdSP1ER4clt+9aSuky3bztCLVDp2/JovKULvw=
+github.com/AOShei/go-fast-rtf v0.0.0-20261120141202-1e98beb8caa1/go.mod h1:ctx3wPZd2xAZ8u9YWlxigIXXkHU4n/TIPpyvcq1f//k=

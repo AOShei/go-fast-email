@@ -104,13 +104,11 @@ func (s *storedFlag) String() string {
 
 // storedKinds is every kind -stored accepts. This library writes no kind
 // of its own; the command renders documents from go-fast-html and
-// go-fast-rtf too, so their kinds are accepted. go-fast-rtf exports no
-// list: "generator" and "custom_property" are the kinds its reader writes
-// (internal/reader/meta.go at the pinned commit, and its command's list).
+// go-fast-rtf too, so their kinds are accepted.
 func storedKinds() []string {
 	kinds := append([]string(nil), gofastcore.StoredKindNames...)
 	kinds = append(kinds, gofasthtml.StoredKindNames...)
-	return append(kinds, "generator", "custom_property")
+	return append(kinds, gofastrtf.StoredKindNames...)
 }
 
 func (s *storedFlag) Set(v string) error {
