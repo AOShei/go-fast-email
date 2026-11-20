@@ -81,6 +81,22 @@ func TestMsgSharedStreams(t *testing.T) {
 	}
 }
 
+// A header given many times has its values joined in Metadata.Extra;
+// joining them one at a time copies what is joined so far each time.
+func TestRepeatedHeaderIsLinear(t *testing.T) {
+	data := "From: a\n" + strings.Repeat("X-A: "+strings.Repeat("v", 90)+"\n", 9_000) + "\nbody\n"
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	doc := extract(t, data, nil)
+	runtime.ReadMemStats(&after)
+	if got := after.TotalAlloc - before.TotalAlloc; got > 64<<20 {
+		t.Errorf("%d MiB allocated for a header section of %d KiB", got>>20, len(data)>>10)
+	}
+	if n := strings.Count(doc.Metadata.Extra["x-a"], "\n"); n != 8_999 {
+		t.Errorf("%d values joined", n+1)
+	}
+}
+
 // With a large decode budget, the recipients held before the text budget
 // sees them are bounded by what the text budget has left.
 func TestMsgSharedStreamsTextBudget(t *testing.T) {

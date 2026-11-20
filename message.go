@@ -207,19 +207,11 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 				md.Created = t
 			}
 		}
-		for _, f := range fields {
-			if f.key == "" {
-				continue
+		md.Extra = joinFields(md.Extra, len(fields), func(yield func(k, v string)) {
+			for _, f := range fields {
+				yield(f.key, f.value)
 			}
-			if md.Extra == nil {
-				md.Extra = map[string]string{}
-			}
-			if old, ok := md.Extra[f.key]; ok {
-				md.Extra[f.key] = old + "\n" + f.value
-			} else {
-				md.Extra[f.key] = f.value
-			}
-		}
+		})
 	}
 	var unshown []headerField
 	if envelope != "" {
@@ -236,6 +228,31 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 
 	r.entity(m, h, raw[bodyAt:], 0, false, "text/plain")
 	r.tail(m, headersAt)
+}
+
+// joinFields adds header values to extra (made if nil and there are any)
+// by key, a key given more than once with its values joined by "\n" in
+// order. The values of a key are joined once, not one at a time, which
+// would copy what is joined so far for each value.
+func joinFields(extra map[string]string, n int, fields func(yield func(k, v string))) map[string]string {
+	byKey := make(map[string][]string, min(n, 64))
+	var order []string
+	fields(func(k, v string) {
+		if k == "" {
+			return
+		}
+		if _, ok := byKey[k]; !ok {
+			order = append(order, k)
+		}
+		byKey[k] = append(byKey[k], v)
+	})
+	if len(order) > 0 && extra == nil {
+		extra = map[string]string{}
+	}
+	for _, k := range order {
+		extra[k] = strings.Join(byKey[k], "\n")
+	}
+	return extra
 }
 
 // headerField is a header a mail program does not show: its name, the

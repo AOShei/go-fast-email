@@ -388,20 +388,19 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 	// does not show.
 	if h := p.str(pidTransportHeaders); h != "" {
 		fields, _, _ := rfc822.ParseHeader([]byte(h), r.e.maxHeader())
-		for _, fl := range fields {
-			k := strings.ToLower(clean.Line(fl.Name))
-			v := line(rfc822.DecodeText(fl.Value, m.charsetReport()))
-			if k == "" {
-				continue
+		extra = joinFields(extra, len(fields), func(yield func(k, v string)) {
+			for _, fl := range fields {
+				k := strings.ToLower(clean.Line(fl.Name))
+				v := line(rfc822.DecodeText(fl.Value, m.charsetReport()))
+				if k == "" {
+					continue
+				}
+				if !isShown(k) {
+					unshown = append(unshown, headerField{clean.Line(fl.Name), clean.Line(fl.Name) + ": " + v, v})
+				}
+				yield(k, v)
 			}
-			if !isShown(k) {
-				unshown = append(unshown, headerField{clean.Line(fl.Name), clean.Line(fl.Name) + ": " + v, v})
-			}
-			if old, dup := extra[k]; dup {
-				v = old + "\n" + v
-			}
-			extra[k] = v
-		}
+		})
 	}
 	r.unshownHeaders(m, unshown, false)
 	if v := line(p.str(pidMessageClass)); v != "" {
