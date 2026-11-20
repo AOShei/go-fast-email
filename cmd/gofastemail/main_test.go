@@ -96,7 +96,7 @@ func TestRenderFlags(t *testing.T) {
 	if code := run(context.Background(), []string{"-exclude-display=unknown", path}, &out, &errs); code != 2 {
 		t.Fatalf("-exclude-display=unknown: exit %d", code)
 	}
-	if !strings.Contains(errs.String(), "hidden, no_ink") {
-		t.Errorf("error does not list the reasons: %s", errs.String())
+	if !strings.Contains(errs.String(), "the reasons are hidden, no_ink\n") {
+		t.Errorf("error does not list exactly the reasons: %s", errs.String())
 	}
 }
