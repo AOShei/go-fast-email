@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("Content-TYpe:teXt/\n0\x00")
