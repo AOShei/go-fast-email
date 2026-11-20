@@ -97,7 +97,8 @@ func (m *message) charsetReport() rfc822.CharsetFunc {
 		switch {
 		case label == "" && res.Replaced:
 			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "bytes that are not UTF-8 in text that declares no character set")
-		case !res.Known:
+		case !res.Known && res.Replaced:
+			// All-ASCII text in such a set loses nothing: no warning.
 			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, fmt.Sprintf("character set %q is not decoded; bytes outside ASCII are U+FFFD", clean.Cut(clean.Line(label), 64)))
 		case res.Replaced:
 			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, fmt.Sprintf("bytes not valid in character set %q", clean.Cut(clean.Line(label), 64)))
