@@ -63,6 +63,11 @@ one that reads, as children:
 | `text/plain` (alternatives and attachments) | go-fast-html, format `txt` |
 | `application/rtf`, `text/rtf` (including the decompressed RTF body of a `.msg`) | go-fast-rtf |
 
+The `charset` parameter the message gives a text part (from its
+`Content-Type`, or `PR_INTERNET_CPID` in a `.msg`) goes to go-fast-html as
+`Extractor.Charset`, the transport-layer encoding: it wins over a
+`<meta>` declaration and loses only to a byte order mark.
+
 Every other attachment is listed with its name and size
 (`child.unsupported`). Core's depth limit applies. Only `cmd/gofastemail`
 imports go-fast-html and go-fast-rtf; the library package imports core

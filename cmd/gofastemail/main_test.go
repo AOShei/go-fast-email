@@ -158,13 +158,23 @@ func TestBodiesReadAsChildren(t *testing.T) {
 			{ID: 0x0037, Value: "rtf"},
 			{ID: 0x1009, Value: rtfLiteral("{\\rtf1 Outlook RTF body.}")},
 		}}),
+		// The charset only in the MIME header (or PR_INTERNET_CPID), none
+		// in the HTML: "\xcf\xf0\xe8\xe2\xe5\xf2" is windows-1251.
+		"cp1251.eml": []byte("From: a@example.com\nSubject: cp1251\nContent-Type: text/html; charset=windows-1251\n\n<p>\xcf\xf0\xe8\xe2\xe5\xf2</p>\n"),
+		"cp1251.msg": msgtest.Build(msgtest.Msg{Props: []msgtest.Prop{
+			{ID: 0x0037, Value: "cp1251"},
+			{ID: 0x3FDE, Value: int32(1251)},
+			{ID: 0x1013, Value: []byte("<p>\xcf\xf0\xe8\xe2\xe5\xf2</p>")},
+		}}),
 	}
 	want := map[string][]string{
-		"html.eml": {"Hello from HTML", "[child 1"},
-		"alt.eml":  {"Plain version.", "Rich version."},
-		"rtf.eml":  {"See attached.", "Attached rich text.", "[child 1: n.rtf]"},
-		"html.msg": {"Outlook HTML body.", "[child 1"},
-		"rtf.msg":  {"Outlook RTF body.", "[child 1"},
+		"html.eml":   {"Hello from HTML", "[child 1"},
+		"alt.eml":    {"Plain version.", "Rich version."},
+		"rtf.eml":    {"See attached.", "Attached rich text.", "[child 1: n.rtf]"},
+		"html.msg":   {"Outlook HTML body.", "[child 1"},
+		"rtf.msg":    {"Outlook RTF body.", "[child 1"},
+		"cp1251.eml": {"\u041f\u0440\u0438\u0432\u0435\u0442"},
+		"cp1251.msg": {"\u041f\u0440\u0438\u0432\u0435\u0442"},
 	}
 	for name, data := range files {
 		path := filepath.Join(dir, name)

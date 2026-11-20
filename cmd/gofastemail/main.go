@@ -154,11 +154,11 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		case "message/rfc822", "message/global", "application/vnd.ms-outlook":
 			return extractor.Extract(ctx, r, size, o)
 		case "text/html", "application/xhtml+xml":
-			return (&gofasthtml.Extractor{Format: "html"}).Extract(ctx, r, size, o)
+			return (&gofasthtml.Extractor{Format: "html", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
 		case "text/markdown":
-			return (&gofasthtml.Extractor{Format: "md"}).Extract(ctx, r, size, o)
+			return (&gofasthtml.Extractor{Format: "md", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
 		case "text/plain":
-			return (&gofasthtml.Extractor{Format: "txt"}).Extract(ctx, r, size, o)
+			return (&gofasthtml.Extractor{Format: "txt", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
 		case "application/rtf", "text/rtf":
 			return (&gofastrtf.Extractor{}).Extract(ctx, r, size, o)
 		}
@@ -313,6 +313,17 @@ func mediaType(v string) string {
 	}
 	t, _, _ := strings.Cut(v, ";")
 	return strings.ToLower(strings.TrimSpace(t))
+}
+
+// charsetOf returns the charset parameter of a media type, as the
+// message declares it for a body or attachment ("" if none). go-fast-html
+// uses it as the transport-layer encoding: after a byte order mark, before
+// <meta>.
+func charsetOf(v string) string {
+	if _, params, err := mime.ParseMediaType(v); err == nil {
+		return params["charset"]
+	}
+	return ""
 }
 
 // moduleVersion is the version this command was built from.
