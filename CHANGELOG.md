@@ -2,6 +2,22 @@
 
 Not yet tagged.
 
+## Unreleased: GB18030, EUC-JP and ISO-2022-JP (branch cjk-more)
+
+- `internal/charset` decodes GB18030 (with four-byte sequences and
+  supplementary characters), EUC-JP (with half-width katakana and JIS X
+  0212) and ISO-2022-JP as the WHATWG Encoding Standard's decoders do, in
+  headers, encoded words, text/plain bodies and `.msg`/TNEF 8-bit strings
+  (code pages 54936, 51932, 50220 to 50222). They gave U+FFFD with a
+  warning before.
+- Tables `gb18030-2.txt`, `gb18030-4.txt`, `jis0208.txt`, `jis0212.txt`
+  and their generator `gen/gen_cjk_extra.py`, written by the orchestrator
+  from Python's codecs, parsed on first use.
+- GB18030 0xA8BC is U+1E3F and four-byte pointer 7457 U+E7C7, as the
+  Encoding Standard has them (the generated table has them swapped).
+- `gbk` and `gb2312` stay on code page 936.
+- `FuzzDecodeCJK`.
+
 ## Unreleased: stored kinds (branch stored-kinds)
 
 - Pins go-fast-core `ebecf3c`, go-fast-html `af97571`, go-fast-rtf

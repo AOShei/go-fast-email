@@ -74,6 +74,17 @@ tables/cp932.txt, cp936.txt, cp949.txt, cp950.txt)
   data is used under the Unicode terms of use. The label lists follow the
   WHATWG Encoding Standard (CC BY 4.0).
 
+GB18030, EUC-JP and ISO-2022-JP (internal/charset/cjk.go,
+gen/gen_cjk_extra.py, tables/gb18030-2.txt, gb18030-4.txt, jis0208.txt,
+jis0212.txt)
+
+  The tables were generated on 2026-11-20 by gen/gen_cjk_extra.py from
+  Python's codecs gb18030, cp932 (through the Shift_JIS to JIS X 0208
+  conversion) and euc_jp; the first line of each names the Python
+  version. gb18030-4.txt is laid out as the WHATWG Encoding Standard's
+  index-gb18030-ranges. The decoders follow the WHATWG Encoding Standard
+  (CC BY 4.0), written from it as remembered.
+
 Compound file reader (internal/cfb)
 
   Copied from go-fast-ooxml (github.com/AOShei/go-fast-ooxml, internal/cfb),
