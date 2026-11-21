@@ -2,6 +2,8 @@
 
 ## v0.1.2 (not yet tagged)
 
+- Built on go-fast-core v0.1.1: a part or document keeps at most 1,000
+  warnings, and the rest are counted in one `warnings.omitted` warning.
 Fixed bounds that cut or left out content without saying so now say so,
 and warnings that could be given without bound are given once per
 message. Outputs for input that reaches none of these bounds are

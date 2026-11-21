@@ -5,7 +5,7 @@ phase. What the library does now is in the [README](README.md).
 
 Module `github.com/AOShei/go-fast-email`, package `gofastemail`. Extracts
 `.eml`, `.mbox`, Outlook `.msg` and TNEF `winmail.dat` into
-`gofastcore.Document` (core v0.1.0, schema 0.2). The
+`gofastcore.Document` (core v0.1.1, schema 0.2). The
 library: standard library and go-fast-core only. The command also imports
 go-fast-html v0.1.0 and go-fast-rtf v0.1.0, to read HTML and RTF
 bodies and attachments as children.
