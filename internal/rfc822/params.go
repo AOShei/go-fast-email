@@ -81,6 +81,10 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
 	}
 	pieces := map[string][]piece{}
 	plain := map[string]string{}
+	// The names in the order the header gives them: the parameters are
+	// decoded in that order, so that what report is told comes in an
+	// order that does not change from run to run.
+	var plainOrder, pieceOrder []string
 	count := 0
 	for rest != "" {
 		rest = strings.TrimLeft(rest, " \t;")
@@ -129,20 +133,25 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
 					continue
 				}
 			}
+			if _, seen := pieces[base]; !seen {
+				pieceOrder = append(pieceOrder, base)
+			}
 			pieces[base] = append(pieces[base], piece{n, ext, v})
 			continue
 		}
 		if _, dup := plain[name]; !dup {
 			plain[name] = v
+			plainOrder = append(plainOrder, name)
 		}
 	}
 	params := map[string]string{}
-	for name, v := range plain {
+	for _, name := range plainOrder {
 		var c Cuts
-		params[name], c = decodeWordsIn(v, report)
+		params[name], c = decodeWordsIn(plain[name], report)
 		cuts.Add(c)
 	}
-	for name, ps := range pieces {
+	for _, name := range pieceOrder {
+		ps := pieces[name]
 		sort.SliceStable(ps, func(i, j int) bool { return ps[i].n < ps[j].n })
 		label := ""
 		var raw []byte

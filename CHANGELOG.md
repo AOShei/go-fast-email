@@ -21,14 +21,21 @@ unchanged.
   counted in a `limit.exceeded`.
 - An encoded word left as written because its text is longer than 4,096
   bytes or its character set name longer than 100 bytes is reported with
-  `limit.exceeded` and a count. A word that does not end within 4,096
-  bytes is left as written with that much text after its start, which is
-  not searched again for words: a long run with `=?` all through it is
-  one cut word per 4,096 bytes, not one per `=?`.
-- A mailbox `From ` line cut to 1,024 bytes in the headers note (its
-  length given as text, after bytes not valid UTF-8 become U+FFFD), and
-  an image description cut to 4,096 bytes, are reported with
-  `limit.exceeded`.
+  `limit.exceeded` and a count. After a word that does not end within
+  4,096 bytes, words are looked for again from the last `=?` within those
+  bytes, so a long run with `=?` all through it is one cut word per 4,096
+  bytes, not one per `=?`, and a word that begins in the run is still
+  decoded. Where a `=?` is not a word because whitespace comes before any
+  `?=`, the search goes on from the first space or tab there (no word can
+  begin before it) rather than 2 bytes on: the output is the same, and
+  the work no longer grows with the number of `=?` times the bound.
+- The parameters of a header are decoded in the order the header gives
+  them, so the character sets a grouped warning names are the same from
+  run to run (they were in map order).
+- A mailbox `From ` line longer than 1,024 bytes is cut to its first
+  1,024 bytes, then made text, and reported with `limit.exceeded` giving
+  its length in bytes; an image description cut to 4,096 bytes is
+  reported with `limit.exceeded`.
 - Outlook messages: property-stream entries past the 65,536th, whose
   fixed-length values (dates, code pages, attachment methods, recipient
   types, flags) are not read, are reported with `limit.exceeded` and a

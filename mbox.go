@@ -18,15 +18,16 @@ import (
 // Limits.MaxParts is zero.
 const DefaultMaxParts = 1_000_000
 
-// maxEnvelope bounds the "From " line kept for a message.
+// maxEnvelope bounds the bytes of the "From " line kept for a message
+// (as text, bytes not valid UTF-8 become U+FFFD).
 const maxEnvelope = 1024
 
 // span is one message of a mailbox: the bytes after its "From " line.
 type span struct {
 	start, end int64
 	envelope   string
-	// long: the bytes of the "From " line as text, where it is cut to
-	// maxEnvelope in the envelope; 0 otherwise.
+	// long: the bytes of the "From " line, where it is cut to its first
+	// maxEnvelope bytes in the envelope; 0 otherwise.
 	long int
 	// counted: the end was found from a Content-Length header (mboxcl2),
 	// so lines in the body that begin ">From " are as the sender wrote
@@ -104,7 +105,7 @@ func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Par
 		return m.part
 	}
 	if s.long > 0 {
-		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the mailbox \"From \" line of this message (%d bytes as text) is cut to %d bytes in the headers note", s.long, maxEnvelope))
+		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the mailbox \"From \" line of this message (%d bytes) is cut to its first %d bytes in the headers note", s.long, maxEnvelope))
 	}
 	r.message(m, raw, number, s.envelope)
 	return m.part
@@ -153,15 +154,10 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 			return err
 		}
 		if atLineStart && prevBlank && bytes.HasPrefix(chunk, []byte("From ")) {
+			// The line is cut in its bytes, before it is made text.
 			line := bytes.TrimRight(chunk[5:], "\r\n")
-			env := clean.Line(strings.ToValidUTF8(string(line), "�"))
-			// long is counted in what is cut: the line as text (bytes not
-			// valid UTF-8 become U+FFFD, which may make it longer).
-			long := 0
-			if len(env) > maxEnvelope || !whole {
-				long = len(env)
-			}
-			env = clean.Cut(env, maxEnvelope)
+			long := len(line)
+			env := clean.Line(strings.ToValidUTF8(clean.Cut(string(line), maxEnvelope), "�"))
 			for !whole { // the rest of a very long line
 				chunk, err = br.ReadSlice('\n')
 				off += int64(len(chunk))
@@ -173,6 +169,9 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 				if !emit(*cur) {
 					return nil
 				}
+			}
+			if long <= maxEnvelope {
+				long = 0
 			}
 			cur = &span{start: off, envelope: env, long: long}
 			if end, ok := countedEnd(src, size, off, maxHeader); ok {

@@ -142,7 +142,7 @@ func TestLongEnvelope(t *testing.T) {
 	if len(doc.Parts) != 2 {
 		t.Fatalf("%d parts", len(doc.Parts))
 	}
-	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(2025 bytes as text)", "cut to 1024 bytes")
+	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(2025 bytes)", "cut to its first 1024 bytes")
 	if len(doc.Parts[1].Warnings) != 0 {
 		t.Errorf("second message: %+v", doc.Parts[1].Warnings)
 	}
@@ -326,16 +326,59 @@ func TestMsgPropertyEntriesWhole(t *testing.T) {
 	}
 }
 
-// The length of a cut "From " line is given as the text that is cut.
-func TestLongEnvelopeAsText(t *testing.T) {
-	box := "From " + strings.Repeat("\xffa", 400) + "\nFrom: a@example.com\nSubject: one\n\nBody.\n"
-	doc := extract(t, box, nil)
-	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(1600 bytes as text)")
-	// Bytes not valid UTF-8 in one run are one U+FFFD: nothing is cut.
-	doc = extract(t, "From "+strings.Repeat("\xff", 2000)+"\nFrom: a@example.com\nSubject: one\n\nBody.\n", nil)
-	if len(doc.Parts[0].Warnings) != 0 {
-		t.Errorf("warnings %+v", doc.Parts[0].Warnings)
+// A "From " line is cut, and its length given, in its bytes, also when
+// they are not valid UTF-8 and when the line is longer than the buffer it
+// is read with.
+func TestLongEnvelopeBytes(t *testing.T) {
+	for _, c := range []struct {
+		line string
+		want string
+	}{
+		{strings.Repeat("\xffa", 400), ""}, // 800 bytes: not cut
+		{strings.Repeat("\xffa", 600), "(1200 bytes)"},
+		{strings.Repeat("\xff", 70_000), "(70000 bytes)"},
+	} {
+		doc := extract(t, "From "+c.line+"\nFrom: a@example.com\nSubject: one\n\nBody.\n", nil)
+		p := &doc.Parts[0]
+		if c.want == "" {
+			if len(p.Warnings) != 0 {
+				t.Errorf("%d bytes: %+v", len(c.line), p.Warnings)
+			}
+			continue
+		}
+		one(t, p, gofastcore.WarnLimitExceeded, c.want, "cut to its first 1024 bytes")
 	}
+}
+
+// The values of a grouped warning come in the order the header gives
+// them, the same on every run.
+func TestGroupedOrderStable(t *testing.T) {
+	msg := "From: a@example.com\nSubject: s\nContent-Type: multipart/mixed; boundary=b\n\n--b\n\nText.\n" +
+		"--b\nContent-Type: application/pdf\nContent-Disposition: attachment; a*=x-one''%E9; b*=x-two''%E9; c*=x-three''%E9; d*=x-four''%E9; e=\"=?x-five?q?=E9?=\"\n\n%PDF\n--b--\n"
+	var first string
+	for i := range 20 {
+		doc := extract(t, msg, &gofastcore.Options{Child: dispatcher(new([]seen))})
+		w := one(t, &doc.Parts[0], gofastcore.WarnTextUnmappedGlyphs)
+		if i == 0 {
+			first = w.Message
+			if !strings.Contains(first, `("x-five", "x-one", "x-two", "x-three", "x-four")`) {
+				t.Fatalf("message %q", first)
+			}
+		} else if w.Message != first {
+			t.Fatalf("run %d: %q, run 0: %q", i, w.Message, first)
+		}
+	}
+}
+
+// After a word cut by the bound, a word that begins within the bound is
+// still decoded.
+func TestWordAfterCutWord(t *testing.T) {
+	subject := "=?x?q?" + strings.Repeat("a", 4090) + "=?utf-8?q?h=C3=A9llo?="
+	doc := extract(t, "From: a@example.com\nSubject: "+subject+"\n\nBody.\n", nil)
+	if !strings.HasSuffix(doc.Metadata.Title, "aaaahéllo") {
+		t.Errorf("title ends %q", doc.Metadata.Title[len(doc.Metadata.Title)-20:])
+	}
+	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(1 word)")
 }
 
 // Pieces numbered above 999 are counted only for parameters that are

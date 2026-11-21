@@ -57,11 +57,20 @@ func DecodeText(raw []byte, report CharsetFunc) (string, Cuts) {
 			sb.WriteString(pending)
 			pending = ""
 			skip := i + 2
-			if cut == cutWord {
-				// The word and the bound's worth of text after its start
-				// are left as written, and looked at no more: a long run
+			switch {
+			case cut == cutWord:
+				// The word is left as written up to the last "=?" within
+				// the bound, where the next word may begin: a long run
 				// with "=?" all through it is one cut word per bound,
 				// not one per "=?", each searching the bound again.
+				end := len(s) - len(rest)
+				if q := strings.LastIndex(s[i+2:min(end+1, len(s))], "=?"); q >= 0 { // one that straddles the bound too
+					skip = i + 2 + q
+				} else {
+					skip = end
+				}
+			case rest != "":
+				// Not a word, and no word begins before rest.
 				skip = len(s) - len(rest)
 			}
 			sb.WriteString(s[:skip])
@@ -112,7 +121,9 @@ const (
 // of s, and returns its text and what follows it. Where it is not
 // decoded because of MaxWord or MaxLabel, and not because of its form,
 // cut says which; for a word that does not end within MaxWord, what
-// follows is what comes after that bound.
+// follows is what comes after that bound. Where it is not a word and no
+// word can begin before some later point, what follows is the text from
+// that point; otherwise it is empty.
 func encodedWord(s string, report CharsetFunc) (string, string, bool, int) {
 	body := s[2:]
 	q1 := strings.IndexByte(body, '?')
@@ -129,14 +140,26 @@ func encodedWord(s string, report CharsetFunc) (string, string, bool, int) {
 	window := text[:min(len(text), MaxWord+2)]
 	end := strings.Index(window, "?=")
 	if end < 0 {
-		if len(window) == MaxWord+2 && !strings.ContainsAny(window, " \t\r\n") {
+		end = len(window)
+	}
+	if strings.ContainsAny(text[:end], " \t\r\n") {
+		// Whitespace before any "?=": not a word. Nor does a word begin
+		// before a space or tab there, since no part of a word holds one
+		// (a line break may be in a label) and no word could end before
+		// it. Unless one begins within "=?label?E?", the caller goes on
+		// from the space or tab, not from 2 bytes on.
+		w := strings.IndexAny(text[:end], " \t")
+		if w < 0 || strings.Contains(s[2:len(s)-len(text)], "=?") {
+			return "", "", false, cutNone
+		}
+		return "", text[w:], false, cutNone
+	}
+	if end == len(window) {
+		if len(window) == MaxWord+2 {
 			// It runs on past the bound with nothing a word may not hold.
 			return "", text[len(window):], false, cutWord
 		}
-		return "", "", false, cutNone
-	}
-	if strings.ContainsAny(text[:end], " \t\r\n") {
-		return "", "", false, cutNone
+		return "", "", false, cutNone // it never ends
 	}
 	if q1 > MaxLabel {
 		return "", "", false, cutLabel

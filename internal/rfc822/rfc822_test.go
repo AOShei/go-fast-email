@@ -117,6 +117,35 @@ func TestDecodeTextBounds(t *testing.T) {
 	}
 }
 
+// TestNotAWordSkip: where a "=?" is not a word because of whitespace, the
+// search goes on from the whitespace, where no word can begin before,
+// and not 2 bytes on.
+func TestNotAWordSkip(t *testing.T) {
+	for _, c := range []struct{ in, rest string }{
+		{"=?a?q?xx=?yy zz?=", " zz?="},
+		{"=?a?q?" + strings.Repeat("x", 3000) + " z", " z"},
+		{"=?a=?q?xx yy", ""},         // a word may begin in "=?a=?q?"
+		{"=?a?q?x=?l\nl?q?ok?=", ""}, // a line break may be in a label
+	} {
+		if _, rest, ok, cut := encodedWord(c.in, nil); ok || cut != cutNone || rest != c.rest {
+			t.Errorf("%.20q: rest %q, want %q", c.in, rest, c.rest)
+		}
+	}
+	if got, _ := DecodeText([]byte("=?a?q?x=?l\nl?q?ok?="), nil); got != "=?a?q?xok" {
+		t.Errorf("label with a line break: %q", got)
+	}
+	// A megabyte of word starts with a space every 4,000 bytes is read
+	// as written.
+	var b strings.Builder
+	for b.Len() < 1<<20 {
+		b.WriteString(strings.Repeat("=?a?q?x", 570))
+		b.WriteByte(' ')
+	}
+	if got, c := DecodeText([]byte(b.String()), nil); got != b.String() || c != (Cuts{}) {
+		t.Errorf("%d bytes back, cuts %+v", len(got), c)
+	}
+}
+
 func TestTransferDecoding(t *testing.T) {
 	if got := string(Base64([]byte("aGVs\r\nbG8g!d29y\nbGQ=\ntrailing"))); got != "hello world" {
 		t.Errorf("Base64 = %q", got)

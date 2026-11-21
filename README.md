@@ -331,9 +331,9 @@ Fixed bounds, each reported with `limit.exceeded` where it cuts:
   reads, are not read.
 - An encoded word: 4,096 bytes of encoded text and a character set name
   of 100 bytes. A longer one is left as written; where a word does not
-  end within 4,096 bytes, that much text after its start is left as
-  written too, without looking for words in it.
-- A mailbox `From ` line: 1,024 bytes in the headers note.
+  end within 4,096 bytes, words are looked for again from the last `=?`
+  within those bytes.
+- A mailbox `From ` line: its first 1,024 bytes in the headers note.
 - An image description: 4,096 bytes.
 - Outlook messages: 10,000 recipients and 10,000 attachments; 65,536
   entries in the property stream of a message, recipient or attachment
