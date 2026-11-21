@@ -80,8 +80,9 @@ type message struct {
 	attached []string
 	warned   map[string]bool
 	groups   map[string]*group
-	order    []*group // groups in the order of their warnings
-	inline   bool     // a single message: its headers go to the metadata
+	head     map[string]rfc822.Cuts // see headCuts
+	order    []*group               // groups in the order of their warnings
+	inline   bool                   // a single message: its headers go to the metadata
 }
 
 func (m *message) warn(sev gofastcore.Severity, code, msg string) {
@@ -114,7 +115,7 @@ type group struct {
 	n     int    // distinct values, or items counted
 	over  bool
 	vals  []string // the first maxListed values, as they are named
-	seen  map[uint64]struct{}
+	seen  map[string]struct{}
 	raw   bool // the values are written as they are, joined by "; "
 	many  func(count, list string) string
 	count func(n int) string
@@ -166,22 +167,21 @@ func (m *message) group(key string) (*group, bool) {
 // raw: the names are written as they are, not quoted.
 func (m *message) warnEach(sev gofastcore.Severity, code, key, value, named, one string, raw bool, many func(count, list string) string) {
 	g, ok := m.group(code + "\x00" + key)
-	h := fnv64(value)
 	if !ok {
-		g.seen, g.raw, g.many = map[uint64]struct{}{h: {}}, raw, many
+		g.seen, g.raw, g.many = map[string]struct{}{value: {}}, raw, many
 		g.n, g.vals = 1, []string{named}
 		g.code, g.first = code, one
 		m.part.Warn(sev, code, one)
 		return
 	}
-	if _, dup := g.seen[h]; dup || g.over {
+	if _, dup := g.seen[value]; dup || g.over {
 		return
 	}
 	if len(g.seen) >= maxSeen {
 		g.over = true
 		return
 	}
-	g.seen[h] = struct{}{}
+	g.seen[value] = struct{}{}
 	g.n++
 	if len(g.vals) < maxListed {
 		g.vals = append(g.vals, named)
@@ -234,17 +234,6 @@ func things(n int, noun string) string {
 	return strconv.Itoa(n) + " " + noun + "s"
 }
 
-// fnv64 is the FNV-1a hash of s: what a group keeps of a value it has
-// seen.
-func fnv64(s string) uint64 {
-	h := uint64(14695981039346656037)
-	for i := 0; i < len(s); i++ {
-		h ^= uint64(s[i])
-		h *= 1099511628211
-	}
-	return h
-}
-
 func (m *message) charsetReport() rfc822.CharsetFunc {
 	return func(label string, res charset.Result) {
 		switch {
@@ -286,6 +275,23 @@ func (m *message) cuts(c rfc822.Cuts) {
 		m.warnCount(gofastcore.WarnLimitExceeded, "pieces", c.Pieces, func(n int) string {
 			return fmt.Sprintf("RFC 2231 parameter pieces numbered above %d are not read (%s)", rfc822.MaxPiece, things(n, "piece"))
 		})
+	}
+}
+
+// headCuts returns the cuts to count for a header whose parameters are
+// read. In the message's own header (depth 0) it was decoded as a field
+// too, where words outside the parameters read are seen, and the
+// parameters where pieces are: each bound counts the more it found of the
+// two, so that a word is counted once.
+func (m *message) headCuts(depth int, key string, c rfc822.Cuts) rfc822.Cuts {
+	if depth > 0 {
+		return c
+	}
+	h := m.head[key]
+	return rfc822.Cuts{
+		LongWords:  max(c.LongWords, h.LongWords),
+		LongLabels: max(c.LongLabels, h.LongLabels),
+		Pieces:     max(c.Pieces, h.Pieces),
 	}
 }
 
@@ -390,8 +396,15 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 	for _, f := range h {
 		d, c := rfc822.DecodeText(f.Value, report)
 		key := strings.ToLower(f.Name)
-		if key != "content-type" && key != "content-disposition" {
-			m.cuts(c) // those two are counted where their parameters are read
+		if _, held := m.head[key]; !held && (key == "content-type" || key == "content-disposition") {
+			// The one whose parameters are read: counted there, with what
+			// reading the parameters finds (see entity).
+			if m.head == nil {
+				m.head = map[string]rfc822.Cuts{}
+			}
+			m.head[key] = c
+		} else {
+			m.cuts(c)
 		}
 		v := clean.Line(d)
 		fields = append(fields, field{key, clean.Line(f.Name), v})
@@ -583,7 +596,7 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 	mediatype, params := defaultType, map[string]string{}
 	if v, ok := h.Get("Content-Type"); ok {
 		t, p, c := rfc822.Params(v, report)
-		m.cuts(c)
+		m.cuts(m.headCuts(depth, "content-type", c))
 		if strings.Contains(t, "/") {
 			mediatype, params = t, p
 		} else {
@@ -595,7 +608,7 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 	if v, ok := h.Get("Content-Disposition"); ok {
 		var c rfc822.Cuts
 		disposition, dparams, c = rfc822.Params(v, report)
-		m.cuts(c)
+		m.cuts(m.headCuts(depth, "content-disposition", c))
 	}
 	name := dparams["filename"]
 	if name == "" {

@@ -155,14 +155,14 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 		}
 		if atLineStart && prevBlank && bytes.HasPrefix(chunk, []byte("From ")) {
 			// The line is cut in its bytes, before it is made text.
-			line := bytes.TrimRight(chunk[5:], "\r\n")
+			line := lineBytes(chunk[5:], whole)
 			long := len(line)
 			env := clean.Line(strings.ToValidUTF8(clean.Cut(string(line), maxEnvelope), "�"))
 			for !whole { // the rest of a very long line
 				chunk, err = br.ReadSlice('\n')
 				off += int64(len(chunk))
-				long += len(bytes.TrimRight(chunk, "\r\n"))
 				whole = !errors.Is(err, bufio.ErrBufferFull)
+				long += len(lineBytes(chunk, whole))
 			}
 			if cur != nil {
 				cur.end = lineStart
@@ -197,6 +197,16 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 		emit(*cur)
 	}
 	return nil
+}
+
+// lineBytes returns the bytes of a line read up to a buffer's size: its
+// line break removed where the line ends there (whole), and as they are
+// where it goes on, a "\r" at the end of the buffer being one of them.
+func lineBytes(chunk []byte, whole bool) []byte {
+	if whole {
+		return bytes.TrimRight(chunk, "\r\n")
+	}
+	return chunk
 }
 
 // countedEnd returns the end of the message whose header begins at start,

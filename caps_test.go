@@ -296,6 +296,42 @@ func TestTopLevelDescriptionCountedOnce(t *testing.T) {
 	}
 }
 
+// A long encoded word in a message's own Content-Type, outside the
+// parameters read (in the media type, in a parameter past the 64th that
+// is not used), is counted; one in a parameter read is counted once.
+func TestTopLevelContentTypeWords(t *testing.T) {
+	word := "=?utf-8?q?" + strings.Repeat("a", 5000) + "?="
+	var junk strings.Builder
+	for i := range 70 {
+		fmt.Fprintf(&junk, "; x%d=%d", i, i)
+	}
+	for _, c := range []struct{ header, want string }{
+		{"Content-Type: text/plain" + junk.String() + "; y=" + word, "(1 word)"},
+		{"Content-Type: " + word, "(1 word)"},
+		{"Content-Type: text/plain; name=\"" + word + "\"", "(1 word)"},
+		{"Content-Type: text/plain; name=\"" + word + "\"\nContent-Disposition: attachment; filename=" + word, "(2 words)"},
+	} {
+		doc := extract(t, "From: a@example.com\n"+c.header+"\n\nBody.\n", &gofastcore.Options{Child: dispatcher(new([]seen))})
+		var ws []string
+		for _, w := range warnings(&doc.Parts[0], gofastcore.WarnLimitExceeded) {
+			if strings.HasPrefix(w.Message, "encoded words that do not end") {
+				ws = append(ws, w.Message)
+			}
+		}
+		if len(ws) != 1 || !strings.Contains(ws[0], c.want) {
+			t.Errorf("%.40q: %q, want %s", c.header, ws, c.want)
+		}
+	}
+}
+
+// A "\r" that ends a buffer's worth of a long "From " line is one of its
+// bytes.
+func TestLongEnvelopeCarriageReturn(t *testing.T) {
+	line := strings.Repeat("e", 64<<10-6) + "\r" + strings.Repeat("f", 10)
+	doc := extract(t, "From "+line+"\nFrom: a@example.com\nSubject: one\n\nBody.\n", nil)
+	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, fmt.Sprintf("(%d bytes)", len(line)))
+}
+
 // A long run with "=?" all through it and no end is one cut word per
 // bound of text, not one per "=?", and is kept as written.
 func TestLongRunOfWordStarts(t *testing.T) {

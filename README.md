@@ -330,9 +330,7 @@ Fixed bounds, each reported with `limit.exceeded` where it cuts:
 - RFC 2231 pieces numbered above 999, of the parameters this library
   reads, are not read.
 - An encoded word: 4,096 bytes of encoded text and a character set name
-  of 100 bytes. A longer one is left as written; where a word does not
-  end within 4,096 bytes, words are looked for again from the last `=?`
-  within those bytes.
+  of 100 bytes. A longer one is left as written.
 - A mailbox `From ` line: its first 1,024 bytes in the headers note.
 - An image description: 4,096 bytes.
 - Outlook messages: 10,000 recipients and 10,000 attachments; 65,536

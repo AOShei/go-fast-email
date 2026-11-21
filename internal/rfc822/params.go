@@ -81,9 +81,10 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
 	}
 	pieces := map[string][]piece{}
 	plain := map[string]string{}
-	// The names in the order the header gives them: the parameters are
-	// decoded in that order, so that what report is told comes in an
-	// order that does not change from run to run.
+	// The names in the order the header gives them: the plain parameters
+	// are decoded in that order, then the pieced ones (RFC 2231) in theirs,
+	// so that what report is told comes in an order that does not change
+	// from run to run.
 	var plainOrder, pieceOrder []string
 	count := 0
 	for rest != "" {

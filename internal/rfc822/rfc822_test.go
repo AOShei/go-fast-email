@@ -117,6 +117,19 @@ func TestDecodeTextBounds(t *testing.T) {
 	}
 }
 
+// TestWordInsideCutWord: a word that begins within the bound of a cut
+// word, at a "=?" before the last one there, is decoded; the cut word is
+// counted once.
+func TestWordInsideCutWord(t *testing.T) {
+	inner := "=?utf-8?q?" + strings.Repeat("C", 200) + "=?B" + strings.Repeat("D", 3847) + "?="
+	in := "=?utf-8?q?" + strings.Repeat("A", 90) + inner
+	got, c := DecodeText([]byte(in), nil)
+	want := "=?utf-8?q?" + strings.Repeat("A", 90) + strings.Repeat("C", 200) + "=?B" + strings.Repeat("D", 3847)
+	if got != want || c != (Cuts{LongWords: 1}) {
+		t.Fatalf("%d bytes back (want %d), cuts %+v", len(got), len(want), c)
+	}
+}
+
 // TestNotAWordSkip: where a "=?" is not a word because of whitespace, the
 // search goes on from the whitespace, where no word can begin before,
 // and not 2 bytes on.
@@ -127,8 +140,8 @@ func TestNotAWordSkip(t *testing.T) {
 		{"=?a=?q?xx yy", ""},         // a word may begin in "=?a=?q?"
 		{"=?a?q?x=?l\nl?q?ok?=", ""}, // a line break may be in a label
 	} {
-		if _, rest, ok, cut := encodedWord(c.in, nil); ok || cut != cutNone || rest != c.rest {
-			t.Errorf("%.20q: rest %q, want %q", c.in, rest, c.rest)
+		if w := encodedWord(c.in, nil, 0, 0); w.ok || w.cut != cutNone || w.rest != c.rest {
+			t.Errorf("%.20q: rest %q, want %q", c.in, w.rest, c.rest)
 		}
 	}
 	if got, _ := DecodeText([]byte("=?a?q?x=?l\nl?q?ok?="), nil); got != "=?a?q?xok" {

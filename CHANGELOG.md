@@ -21,20 +21,24 @@ unchanged.
   counted in a `limit.exceeded`.
 - An encoded word left as written because its text is longer than 4,096
   bytes or its character set name longer than 100 bytes is reported with
-  `limit.exceeded` and a count. After a word that does not end within
-  4,096 bytes, words are looked for again from the last `=?` within those
-  bytes, so a long run with `=?` all through it is one cut word per 4,096
-  bytes, not one per `=?`, and a word that begins in the run is still
-  decoded. Where a `=?` is not a word because whitespace comes before any
-  `?=`, the search goes on from the first space or tab there (no word can
-  begin before it) rather than 2 bytes on: the output is the same, and
-  the work no longer grows with the number of `=?` times the bound.
-- The parameters of a header are decoded in the order the header gives
-  them, so the character sets a grouped warning names are the same from
-  run to run (they were in map order).
-- A mailbox `From ` line longer than 1,024 bytes is cut to its first
-  1,024 bytes, then made text, and reported with `limit.exceeded` giving
-  its length in bytes; an image description cut to 4,096 bytes is
+  `limit.exceeded` and a count; a long run with `=?` all through it is
+  one cut word per 4,096 bytes, not one per `=?`. A word that begins in
+  such a run is decoded as before. In a header's own Content-Type and
+  Content-Disposition, read both as a field and for their parameters,
+  each such word is counted once.
+- The text of headers is decoded as before, with less work: where the
+  end of a word is looked for, what was searched for an earlier `=?` is
+  not searched again, and where a `=?` is not a word because whitespace
+  comes before any `?=`, the search goes on from the first space or tab
+  there (no word can begin before it), not 2 bytes on. The work no longer
+  grows with the number of `=?` times the bound.
+- The parameters of a header are decoded in a fixed order (the plain
+  ones in header order, then the pieced ones of RFC 2231 in theirs), so
+  the character sets a grouped warning names are the same from run to
+  run (they were in map order).
+- A mailbox `From ` line longer than 1,024 bytes (without its line
+  break) is cut to its first 1,024 bytes, then made text, and reported
+  with `limit.exceeded` giving its length in bytes; an image description cut to 4,096 bytes is
   reported with `limit.exceeded`.
 - Outlook messages: property-stream entries past the 65,536th, whose
   fixed-length values (dates, code pages, attachment methods, recipient
@@ -54,8 +58,8 @@ unchanged.
   bodies without a boundary, without the boundary found or without a
   closing boundary, `input.external_reference` and `email.alternatives`
   are given once per message for each kind, with the number of distinct
-  values and the first eight. Values are told apart in full, though
-  named cut. One subject with 5,000 unknown character sets gave 5,000
+  values and the first eight. Values are told apart by their whole text,
+  though named cut. One subject with 5,000 unknown character sets gave 5,000
   warnings; it gives one. A value given once keeps the message it had.
   A grouped warning is rewritten only while it is at its place among the
   part's warnings, so a cap on warnings per part leaves it as written.
