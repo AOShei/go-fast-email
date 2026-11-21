@@ -1,6 +1,16 @@
 # Changelog
 
-## v0.1.0 (not yet tagged)
+## v0.1.1 (not yet tagged)
+
+- The command reads HTML and RTF with go-fast-html v0.1.0 and go-fast-rtf
+  v0.1.0, in place of the development commits `bad19e7` and `1e98beb`
+  that v0.1.0 was tagged with. Since those commits, both libraries
+  changed their documentation, took their stored kinds and note types
+  from go-fast-core, and moved their own commands to core's render
+  flags. The library package is unchanged: it imports only go-fast-core
+  and the standard library.
+
+## v0.1.0 (2026-11-21)
 
 The first version.
 
