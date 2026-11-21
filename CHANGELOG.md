@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.1 (not yet tagged)
+## v0.1.1 (2026-11-21)
 
 - The command reads HTML and RTF with go-fast-html v0.1.0 and go-fast-rtf
   v0.1.0, in place of the development commits `bad19e7` and `1e98beb`
