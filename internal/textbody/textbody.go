@@ -18,7 +18,7 @@ import (
 )
 
 // RoleSignature is Attrs["role"] of a block of the signature.
-const RoleSignature = "signature"
+const RoleSignature = gofastcore.RoleSignature
 
 // MaxQuoteDepth bounds the depth of a quote block; deeper quoting is given
 // this depth, with the ">" marks beyond it kept in the text.

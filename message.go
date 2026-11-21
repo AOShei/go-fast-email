@@ -33,19 +33,20 @@ const (
 	AttrChildren = "children"
 )
 
-// Values of Attrs["role"] and of the note type this library uses.
+// Values of Attrs["role"] and of the note type this library uses. They are
+// core's values (gofastcore.RoleHeaders, NoteHeaders and so on).
 const (
-	RoleHeaders   = "headers"
-	RoleSignature = "signature" // the value of textbody.RoleSignature
+	RoleHeaders   = gofastcore.RoleHeaders
+	RoleSignature = gofastcore.RoleSignature // the value of textbody.RoleSignature
 	// NoteHeaders: a note block that holds the headers a mail program does
 	// not show, one "Name: value" per line (in a mailbox). No display
 	// reason: the format declares none.
-	NoteHeaders = "headers"
+	NoteHeaders = gofastcore.NoteHeaders
 	// NotePreamble and NoteEpilogue: the text of a multipart body before
 	// its first part and after its last, which no mail program shows. No
 	// display reason: the format declares none.
-	NotePreamble = "mime_preamble"
-	NoteEpilogue = "mime_epilogue"
+	NotePreamble = gofastcore.NoteMIMEPreamble
+	NoteEpilogue = gofastcore.NoteMIMEEpilogue
 )
 
 // maxNameBytes bounds a part name and an attachment name.

@@ -19,11 +19,11 @@ const (
 	AttrChildren	= "children"
 )
 const (
-	RoleHeaders	= "headers"
-	RoleSignature	= "signature"
-	NoteHeaders	= "headers"
-	NotePreamble	= "mime_preamble"
-	NoteEpilogue	= "mime_epilogue"
+	RoleHeaders	= gofastcore.RoleHeaders
+	RoleSignature	= gofastcore.RoleSignature
+	NoteHeaders	= gofastcore.NoteHeaders
+	NotePreamble	= gofastcore.NoteMIMEPreamble
+	NoteEpilogue	= gofastcore.NoteMIMEEpilogue
 )
 const DefaultMaxParts = 1_000_000
 func Extract(ctx context.Context, r io.ReaderAt, size int64, opts *gofastcore.Options) (*gofastcore.Document, error)
