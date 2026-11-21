@@ -8,11 +8,12 @@ Character set tables (internal/charset/tables.go)
   which agrees with the Unicode Consortium's mapping
   MAPPINGS/VENDORS/MICSFT/WINDOWS/CP1252.TXT at every byte that mapping
   defines. The five bytes the Unicode mapping leaves undefined are decoded
-  as U+FFFD. The 32 entries were written out from the specification by hand
-  (no network access during the run that wrote them) and are checked by
-  internal/charset/charset_test.go against the code points of the
-  specification; they should be compared once more with the published
-  index.
+  as U+FFFD. The 32 entries were written out from the specification by hand,
+  without network access. internal/charset/charset_test.go checks them
+  against the code points of the specification and against the copied
+  windows-1252 table below, which was compared byte by byte with Python's
+  codec; they have not been compared directly with the published index
+  file.
 
   ISO/IEC 8859-15, the eight bytes where it differs from ISO-8859-1: from
   the Unicode Consortium's mapping MAPPINGS/ISO8859/8859-15.TXT, written
@@ -78,11 +79,16 @@ GB18030, EUC-JP and ISO-2022-JP (internal/charset/cjk.go,
 gen/gen_cjk_extra.py, tables/gb18030-2.txt, gb18030-4.txt, jis0208.txt,
 jis0212.txt)
 
-  The tables were generated on 2026-11-20 by gen/gen_cjk_extra.py from
-  Python's codecs gb18030, cp932 (through the Shift_JIS to JIS X 0208
-  conversion) and euc_jp; the first line of each names the Python
-  version. gb18030-4.txt is laid out as the WHATWG Encoding Standard's
-  index-gb18030-ranges. The decoders follow the WHATWG Encoding Standard
+  The tables were generated on 2026-11-20 by
+  internal/charset/gen/gen_cjk_extra.py from Python's codecs gb18030,
+  cp932 (through the Shift_JIS to JIS X 0208 conversion) and euc_jp; the
+  first line of each names the Python version. The mapping data is that
+  of Python's codecs, distributed with Python under the Python Software
+  Foundation License. gb18030-4.txt is laid out as the WHATWG Encoding
+  Standard's index-gb18030-ranges. Two entries differ from the generated
+  tables, in cjk.go: 0xA8BC is U+1E3F and four-byte pointer 7457 is
+  U+E7C7, as the Encoding Standard has them (Python's codec has the two
+  the other way round). The decoders follow the WHATWG Encoding Standard
   (CC BY 4.0), written from it as remembered.
 
 Compound file reader (internal/cfb)
