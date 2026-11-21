@@ -81,6 +81,7 @@ type message struct {
 	warned   map[string]bool
 	groups   map[string]*group
 	head     map[string]rfc822.Cuts // see headCuts
+	props    int                    // property readers made, in an Outlook message or TNEF stream
 	order    []*group               // groups in the order of their warnings
 	inline   bool                   // a single message: its headers go to the metadata
 }

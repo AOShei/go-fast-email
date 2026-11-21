@@ -192,7 +192,7 @@ func TestMsgManyPropertyEntries(t *testing.T) {
 	}
 	data := msgtest.Build(msgtest.Msg{Props: props})
 	doc := extractBytes(t, data, nil)
-	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "more than 65536 entries", "(65 entries)")
+	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "more than 65536 entries", "(65 entries in all)")
 }
 
 // The transport headers of an Outlook message cut by a bound are
@@ -325,11 +325,21 @@ func TestTopLevelContentTypeWords(t *testing.T) {
 }
 
 // A "\r" that ends a buffer's worth of a long "From " line is one of its
-// bytes.
+// bytes, unless the "\n" of the line's break follows it.
 func TestLongEnvelopeCarriageReturn(t *testing.T) {
-	line := strings.Repeat("e", 64<<10-6) + "\r" + strings.Repeat("f", 10)
-	doc := extract(t, "From "+line+"\nFrom: a@example.com\nSubject: one\n\nBody.\n", nil)
-	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, fmt.Sprintf("(%d bytes)", len(line)))
+	e := strings.Repeat("e", 64<<10-6) // with "From ", the buffer ends after the next byte
+	for _, c := range []struct {
+		line string // as written, with its break
+		n    int
+	}{
+		{e + "\r" + strings.Repeat("f", 10) + "\n", len(e) + 11},
+		{e + "\r\n", len(e)},          // the break split between buffers
+		{e + "\r\r\n", len(e)},        // as a whole line's trailing "\r"s are
+		{e + "\r\rx\r\n", len(e) + 3}, // held back, then counted
+	} {
+		doc := extract(t, "From "+c.line+"From: a@example.com\nSubject: one\n\nBody.\n", nil)
+		one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, fmt.Sprintf("(%d bytes)", c.n))
+	}
 }
 
 // A long run with "=?" all through it and no end is one cut word per
@@ -348,7 +358,7 @@ func TestMsgPropertyEntriesWhole(t *testing.T) {
 	for _, c := range []struct {
 		extra int
 		want  string
-	}{{8, ""}, {24, "(1 entry)"}} {
+	}{{8, ""}, {24, "(1 entry in all)"}} {
 		props := make([]byte, 32+16*65536+c.extra)
 		data := msgtest.Compound(map[string][]byte{"__properties_version1.0": props})
 		doc := extractBytes(t, data, nil)

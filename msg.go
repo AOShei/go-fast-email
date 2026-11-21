@@ -113,6 +113,9 @@ type props struct {
 	alt   string
 	limit int64
 	m     *message
+	// serial tells this object's properties from another's of the same
+	// message: the number of property readers made for it so far.
+	serial int
 	// r, for a compound file: every byte read from it is taken from the
 	// decode budget, since a file can give many streams the same sectors
 	// and so be read many times over.
@@ -120,7 +123,8 @@ type props struct {
 }
 
 func (r *reader) readProps(m *message, f *cfb.File, prefix []string, headerSize int) *props {
-	p := &props{f: f, prefix: prefix, fixed: map[uint32]uint64{}, limit: r.e.maxMessage(), m: m, r: r}
+	m.props++
+	p := &props{f: f, prefix: prefix, fixed: map[uint32]uint64{}, limit: r.e.maxMessage(), m: m, r: r, serial: m.props}
 	s, err := f.Open(p.path("__properties_version1.0")...)
 	if err != nil {
 		return p
@@ -132,7 +136,7 @@ func (r *reader) readProps(m *message, f *cfb.File, prefix []string, headerSize 
 	}
 	if lost := (s.Size() - window) / 16; lost >= 1 { // whole entries only: a part of one is not read in any case
 		m.warnCount(gofastcore.WarnLimitExceeded, "property entries", int(lost), func(n int) string {
-			return fmt.Sprintf("a property stream has more than %d entries; the fixed-length values (dates, numbers, flags) in the entries past the %dth are not read (%s)", maxFixedEntries, maxFixedEntries, things(n, "entry"))
+			return fmt.Sprintf("property streams with more than %d entries: the fixed-length values (dates, numbers, flags) in the entries past the %dth of each are not read (%s in all)", maxFixedEntries, maxFixedEntries, things(n, "entry"))
 		})
 	}
 	buf := make([]byte, n)
@@ -184,7 +188,7 @@ func (p *props) read(id, typ uint16) ([]byte, bool) {
 // long warns, once per part, of the properties longer than the message
 // limit, which are read to that length.
 func (p *props) long(id, typ uint16, size int64) {
-	p.m.warnEach(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "long property", fmt.Sprintf("%p %04X%04X", p, id, typ),
+	p.m.warnEach(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "long property", fmt.Sprintf("%d %04X%04X", p.serial, id, typ),
 		fmt.Sprintf("%d bytes", size), fmt.Sprintf("a property of %d bytes read to %d", size, p.limit), true,
 		func(count, list string) string {
 			return fmt.Sprintf("%s properties longer than %d bytes are read to that length (%s)", count, p.limit, list)

@@ -38,12 +38,13 @@ unchanged.
   run (they were in map order).
 - A mailbox `From ` line longer than 1,024 bytes (without its line
   break) is cut to its first 1,024 bytes, then made text, and reported
-  with `limit.exceeded` giving its length in bytes; an image description cut to 4,096 bytes is
-  reported with `limit.exceeded`.
-- Outlook messages: property-stream entries past the 65,536th, whose
-  fixed-length values (dates, code pages, attachment methods, recipient
-  types, flags) are not read, are reported with `limit.exceeded` and a
-  count (whole entries only); transport headers cut by `MaxHeaderBytes`
+  with `limit.exceeded` giving its length in bytes; an image description
+  cut to 4,096 bytes is reported with `limit.exceeded`.
+- Outlook messages: the entries past the 65,536th of each property
+  stream, whose fixed-length values (dates, code pages, attachment
+  methods, recipient types, flags) are not read, are reported with one
+  `limit.exceeded` per message and their count over all its streams
+  (whole entries only); transport headers cut by `MaxHeaderBytes`
   or by the bound of 10,000 fields are reported as the header of a
   message is. Properties read to `MaxMessageBytes` are one
   `limit.exceeded` per message, with their number and sizes (one per
