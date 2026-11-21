@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.1.2 (not yet tagged)
+
+Fixed bounds that cut or left out content without saying so now say so,
+and warnings that could be given without bound are given once per
+message. Outputs for input that reaches none of these bounds are
+unchanged.
+
+- An attachment's file name (in a message, an Outlook message or a TNEF
+  stream) is kept to 4,096 bytes, not 256; a longer one is cut in the
+  middle with its extension kept, and the part has one
+  `limit.exceeded` with the number of names cut.
+- Past 64 parameters in a header, `boundary`, `charset`, `name`,
+  `filename`, `format`, `delsp`, `access-type`, `url` and `site` (and
+  their RFC 2231 pieces) are still read, to the end of the header; a
+  boundary written after the 64th parameter is no longer reported as a
+  multipart body with no boundary. The other parameters past the 64th,
+  and RFC 2231 pieces numbered above 999, are counted in a
+  `limit.exceeded`.
+- An encoded word left as written because its text is longer than 4,096
+  bytes or its character set name longer than 100 bytes is reported with
+  `limit.exceeded` and a count.
+- A mailbox `From ` line cut to 1,024 bytes in the headers note, and an
+  image description cut to 4,096 bytes, are reported with
+  `limit.exceeded`.
+- Outlook messages: property-stream entries past the 65,536th, whose
+  fixed-length values (dates, code pages, attachment methods, recipient
+  types, flags) are not read, are reported with `limit.exceeded` and a
+  count; transport headers cut by `MaxHeaderBytes` or by the bound of
+  10,000 fields are reported as the header of a message is.
+- Where the text budget ends at the list of attachments in the headers
+  block, the list is left out with `limit.exceeded`, as wherever else
+  the budget ends; it was left out without one.
+- A URL or path cut to 1,024 bytes in an `input.external_reference`
+  message says so.
+- `text.unmapped_glyphs` (one per character set before),
+  `email.unknown_transfer_encoding`, `input.repaired` for multipart
+  bodies without a boundary, without the boundary found or without a
+  closing boundary, `input.external_reference` and `email.alternatives`
+  are given once per message for each kind, with the number of distinct
+  values and the first eight. One subject with 5,000 unknown character
+  sets gave 5,000 warnings; it gives one. A value given once keeps the
+  message it had.
+
 ## v0.1.1 (2026-11-21)
 
 - The command reads HTML and RTF with go-fast-html v0.1.0 and go-fast-rtf

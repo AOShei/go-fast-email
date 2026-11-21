@@ -290,7 +290,11 @@ bodies unchanged.
 ## Warnings
 
 Warnings state facts about extraction (damage, limits, unsupported
-features); none is about unshown content.
+features); none is about unshown content. A warning that can be given for
+many values (character sets, transfer encodings, media types, places
+outside the message, sets of alternatives) is given once per message,
+with the number of distinct values and the first eight; a bound that cuts
+many items is reported once per message, with their number.
 
 | Code | When |
 |---|---|
@@ -299,7 +303,7 @@ features); none is about unshown content.
 | `text.unmapped_glyphs` | A character set not decoded, or bytes not valid in the one declared |
 | `input.repaired` | A header section ended by a line that is not a header; a multipart body without closing boundary or without any boundary; base64 with characters outside its alphabet; an unreadable compressed RTF body; a damaged TNEF stream (cut short, a wrong checksum, an unreadable property list); an Outlook compound file whose short streams cannot be read (the properties in them are missing; severity error) |
 | `input.external_reference` | An Outlook attachment by reference names a file outside the message; a `message/external-body` part names content elsewhere (its URL or file is in the message; nothing is fetched) |
-| `limit.exceeded` (error) | Any limit below |
+| `limit.exceeded` (error) | Any limit below, and the fixed bounds after it |
 | `part.no_text` | A message with no text at all |
 
 ## Limits
@@ -318,8 +322,27 @@ features); none is about unshown content.
 
 A message is held in memory, with at most one decoded part beside it. A
 mailbox is scanned a line at a time and read one message at a time.
-Encoded words, parameters, recipients and attachments of an Outlook
-message (10,000) are bounded too.
+
+Fixed bounds, each reported with `limit.exceeded` where it cuts:
+
+- An attachment's file name: 4,096 bytes. A longer one is cut in the
+  middle; its extension is kept.
+- Parameters of a header: 64. Past them only `boundary`, `charset`,
+  `name`, `filename`, `format`, `delsp`, `access-type`, `url` and `site`
+  are read, to the end of the header. RFC 2231 pieces numbered above 999
+  are not read.
+- An encoded word: 4,096 bytes of encoded text and a character set name
+  of 100 bytes. A longer one is left as written.
+- A mailbox `From ` line: 1,024 bytes in the headers note.
+- An image description: 4,096 bytes.
+- Outlook messages: 10,000 recipients and 10,000 attachments; 65,536
+  entries in the property stream of a message, recipient or attachment
+  (the fixed-length values past them, such as dates, numbers and flags,
+  are not read); and the bounds of a header section for the transport
+  headers.
+
+A part name, which is a label (the subject is in full in the heading), is
+cut to 256 bytes without a warning.
 
 ## Mailboxes
 
