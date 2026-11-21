@@ -50,7 +50,18 @@ const (
 //	input.repaired        a header section ended by a line that is not a
 //	                      header, a multipart body with no closing
 //	                      boundary or no boundary at all, base64 with
-//	                      characters outside its alphabet
+//	                      characters outside its alphabet, a compressed
+//	                      RTF body that cannot be read, a damaged TNEF
+//	                      stream (cut short, a wrong checksum, an
+//	                      unreadable property list), an Outlook compound
+//	                      file whose short streams cannot be read
+//	                      (severity error: the properties in them are
+//	                      missing)
+//	input.external_reference
+//	                      an Outlook attachment by reference names a file
+//	                      outside the message, or a message/external-body
+//	                      part names content elsewhere; nothing is fetched
+//	part.no_text          a message with no text at all
 const (
 	// WarnAlternatives: the message has alternative bodies
 	// (multipart/alternative). The blocks are the text/plain alternative;
@@ -63,11 +74,11 @@ const (
 	WarnUnknownTransferEncoding = "email.unknown_transfer_encoding"
 )
 
-// Extractor extracts email: a single message (.eml), a mailbox (.mbox) and
-// an Outlook message (.msg). The zero value is ready to use and safe for
-// concurrent use. Its fields are the settings only this library has;
-// everything else is in gofastcore.Options. For each, zero means the
-// default and a negative value no limit.
+// Extractor extracts email: a single message (.eml), a mailbox (.mbox), an
+// Outlook message (.msg) and a TNEF stream (winmail.dat). The zero value
+// is ready to use and safe for concurrent use. Its fields are the settings
+// only this library has; everything else is in gofastcore.Options. For
+// each, zero means the default and a negative value no limit.
 type Extractor struct {
 	// MaxMessageBytes bounds the bytes of one message held in memory: an
 	// .eml file, or one message of a mailbox. A longer message is read to

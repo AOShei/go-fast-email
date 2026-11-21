@@ -1,11 +1,14 @@
-// Command gofastemail extracts email (.eml, .mbox, Outlook .msg) into the
-// shared document model of the go-fast libraries and prints it as JSON,
-// Markdown or plain text.
+// Command gofastemail extracts email (.eml, .mbox, Outlook .msg, TNEF
+// winmail.dat) into the shared document model of the go-fast libraries and
+// prints it as JSON, Markdown or plain text.
 //
 //	gofastemail [flags] file-or-directory...
 //
-// A directory stands for the email files in it and below it. With one
-// input the JSON is indented; with several, each document is one line.
+// A directory stands for the files in it and below it whose extension is
+// .eml, .mbox, .mbx or .msg. A file named on the command line is read
+// whatever its name, its format decided from its bytes, so a winmail.dat
+// is read when it is named. With one input the JSON is indented; with
+// several, each document is one line.
 // Only the documents go to standard output: everything said about them
 // goes to standard error, and the exit status is 1 if any input could not
 // be read.

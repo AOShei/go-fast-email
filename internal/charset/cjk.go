@@ -11,9 +11,8 @@ import (
 // GB18030, EUC-JP and ISO-2022-JP, decoded as the WHATWG Encoding
 // Standard's decoders do, from the tables tables/gb18030-2.txt,
 // gb18030-4.txt, jis0208.txt and jis0212.txt that gen/gen_cjk_extra.py
-// writes (see its header and NOTICE). Each table is parsed the first time
-// a message uses it. A set whose tables are not in tables/ is not decoded:
-// its labels are unknown.
+// writes (see its header and NOTICE), embedded in the binary. Each table
+// is parsed the first time a message uses it.
 //
 // The labels gbk and gb2312 stay on code page 936 (dbcs.go): it has the
 // two-byte characters of GB18030 and 0x80 as the euro sign, but not the

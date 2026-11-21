@@ -16,10 +16,9 @@ import (
 // The double-byte code pages 932 (Shift_JIS), 936 (GBK), 949 (EUC-KR,
 // Unified Hangul Code) and 950 (Big5) are read from the tables in
 // tables/cp932.txt ... cp950.txt, written by gen/gen_dbcs.py (see its
-// header and NOTICE). Each is parsed the first time a message uses it,
-// into an array for each lead byte, indexed by the trail byte; a lead
-// byte with no characters has no array. A code page whose table is not
-// in tables/ is not decoded: its labels are unknown, as before.
+// header and NOTICE) and embedded in the binary. Each is parsed the first
+// time a message uses it, into an array for each lead byte, indexed by the
+// trail byte; a lead byte with no characters has no array.
 
 //go:embed tables
 var dbcsFS embed.FS
