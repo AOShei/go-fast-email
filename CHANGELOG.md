@@ -33,10 +33,16 @@ The first version.
   `-exclude-display[=reasons]` and `-children`.
 - The library imports only go-fast-core and the standard library; the
   command adds go-fast-html and go-fast-rtf.
-- Pins: go-fast-core `4499357` (schema `0.2`); in the command, go-fast-html
+- Pins: go-fast-core v0.1.0 (schema `0.2`); in the command, go-fast-html
   `bad19e7` and go-fast-rtf `1e98beb` (see `go.mod`).
 
 ## Before v0.1.0
+
+### Core v0.1.0
+
+- go-fast-core pinned at its v0.1.0 tag. Nothing changes here: since
+  `4499357` core changed documentation, and `TextBudget.Take` now takes a
+  negative amount as 0, which this library never passes.
 
 ### Core 4499357: closed value sets, shared render flags
 
