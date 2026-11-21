@@ -17,19 +17,26 @@ unchanged.
   boundary written after the 64th parameter is no longer reported as a
   multipart body with no boundary. The other parameters past the 64th
   are not read, as before, with no warning: this library does not use
-  them. RFC 2231 pieces numbered above 999 are counted in a
-  `limit.exceeded`.
+  them. RFC 2231 pieces numbered above 999 of the parameters read are
+  counted in a `limit.exceeded`.
 - An encoded word left as written because its text is longer than 4,096
   bytes or its character set name longer than 100 bytes is reported with
-  `limit.exceeded` and a count.
-- A mailbox `From ` line cut to 1,024 bytes in the headers note, and an
-  image description cut to 4,096 bytes, are reported with
+  `limit.exceeded` and a count. A word that does not end within 4,096
+  bytes is left as written with that much text after its start, which is
+  not searched again for words: a long run with `=?` all through it is
+  one cut word per 4,096 bytes, not one per `=?`.
+- A mailbox `From ` line cut to 1,024 bytes in the headers note (its
+  length given as text, after bytes not valid UTF-8 become U+FFFD), and
+  an image description cut to 4,096 bytes, are reported with
   `limit.exceeded`.
 - Outlook messages: property-stream entries past the 65,536th, whose
   fixed-length values (dates, code pages, attachment methods, recipient
   types, flags) are not read, are reported with `limit.exceeded` and a
-  count; transport headers cut by `MaxHeaderBytes` or by the bound of
-  10,000 fields are reported as the header of a message is.
+  count (whole entries only); transport headers cut by `MaxHeaderBytes`
+  or by the bound of 10,000 fields are reported as the header of a
+  message is. Properties read to `MaxMessageBytes` are one
+  `limit.exceeded` per message, with their number and sizes (one per
+  property before).
 - Where the text budget ends at the list of attachments in the headers
   block, the list is left out with `limit.exceeded`, as wherever else
   the budget ends; it was left out without one.
@@ -40,9 +47,11 @@ unchanged.
   bodies without a boundary, without the boundary found or without a
   closing boundary, `input.external_reference` and `email.alternatives`
   are given once per message for each kind, with the number of distinct
-  values and the first eight. One subject with 5,000 unknown character
-  sets gave 5,000 warnings; it gives one. A value given once keeps the
-  message it had.
+  values and the first eight. Values are told apart in full, though
+  named cut. One subject with 5,000 unknown character sets gave 5,000
+  warnings; it gives one. A value given once keeps the message it had.
+  A grouped warning is rewritten only while it is at its place among the
+  part's warnings, so a cap on warnings per part leaves it as written.
 
 ## v0.1.1 (2026-11-21)
 

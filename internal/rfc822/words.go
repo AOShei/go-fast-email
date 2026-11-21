@@ -56,8 +56,16 @@ func DecodeText(raw []byte, report CharsetFunc) (string, Cuts) {
 		if !ok {
 			sb.WriteString(pending)
 			pending = ""
-			sb.WriteString(s[:i+2])
-			s = s[i+2:]
+			skip := i + 2
+			if cut == cutWord {
+				// The word and the bound's worth of text after its start
+				// are left as written, and looked at no more: a long run
+				// with "=?" all through it is one cut word per bound,
+				// not one per "=?", each searching the bound again.
+				skip = len(s) - len(rest)
+			}
+			sb.WriteString(s[:skip])
+			s = s[skip:]
 			afterWord = false
 			continue
 		}
@@ -103,7 +111,8 @@ const (
 // encodedWord decodes the encoded word "=?charset?enc?text?=" at the start
 // of s, and returns its text and what follows it. Where it is not
 // decoded because of MaxWord or MaxLabel, and not because of its form,
-// cut says which.
+// cut says which; for a word that does not end within MaxWord, what
+// follows is what comes after that bound.
 func encodedWord(s string, report CharsetFunc) (string, string, bool, int) {
 	body := s[2:]
 	q1 := strings.IndexByte(body, '?')
@@ -122,7 +131,7 @@ func encodedWord(s string, report CharsetFunc) (string, string, bool, int) {
 	if end < 0 {
 		if len(window) == MaxWord+2 && !strings.ContainsAny(window, " \t\r\n") {
 			// It runs on past the bound with nothing a word may not hold.
-			return "", "", false, cutWord
+			return "", text[len(window):], false, cutWord
 		}
 		return "", "", false, cutNone
 	}

@@ -108,8 +108,10 @@ const (
 // when the first occurs, in the order of the part's warnings, and its
 // message is set to cover the others when the part is finished.
 type group struct {
-	at    int // index of its warning in part.Warnings
-	n     int // distinct values, or items counted
+	at    int // index of its warning in part.Warnings, if it was kept
+	code  string
+	first string // the message it was written with
+	n     int    // distinct values, or items counted
 	over  bool
 	vals  []string // the first maxListed values, as they are named
 	seen  map[uint64]struct{}
@@ -168,6 +170,7 @@ func (m *message) warnEach(sev gofastcore.Severity, code, key, value, named, one
 	if !ok {
 		g.seen, g.raw, g.many = map[uint64]struct{}{h: {}}, raw, many
 		g.n, g.vals = 1, []string{named}
+		g.code, g.first = code, one
 		m.part.Warn(sev, code, one)
 		return
 	}
@@ -191,23 +194,29 @@ func (m *message) warnCount(code, key string, n int, text func(total int) string
 	g, ok := m.group(code + "\x00" + key)
 	g.n += n
 	if !ok {
-		g.count = text
-		m.part.Warn(gofastcore.SeverityError, code, text(g.n))
+		g.count, g.code, g.first = text, code, text(g.n)
+		m.part.Warn(gofastcore.SeverityError, code, g.first)
 	}
 }
 
 // finish sets the messages of the grouped warnings and finishes the part.
+// A grouped warning is rewritten only where it is still at its place: a
+// part may keep only so many warnings, and then it was never written.
 func (m *message) finish() {
+	ws := m.part.Warnings
 	for _, g := range m.order {
+		if g.at >= len(ws) || ws[g.at].Code != g.code || ws[g.at].Message != g.first {
+			continue
+		}
 		switch {
 		case g.count != nil:
-			m.part.Warnings[g.at].Message = g.count(g.n)
+			ws[g.at].Message = g.count(g.n)
 		case g.n > 1 || g.over:
 			count := strconv.Itoa(g.n)
 			if g.over {
 				count = fmt.Sprintf("more than %d", maxSeen)
 			}
-			m.part.Warnings[g.at].Message = g.many(count, g.list())
+			ws[g.at].Message = g.many(count, g.list())
 		}
 	}
 	m.order, m.groups = nil, nil
@@ -243,16 +252,16 @@ func (m *message) charsetReport() rfc822.CharsetFunc {
 			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "bytes that are not UTF-8 in text that declares no character set")
 		case !res.Known && res.Replaced:
 			// All-ASCII text in such a set loses nothing: no warning.
-			label = clean.Cut(clean.Line(label), 64)
-			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "unknown", label, label,
-				fmt.Sprintf("character set %q is not decoded; bytes outside ASCII are U+FFFD", label), false,
+			named := clean.Cut(clean.Line(label), 64)
+			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "unknown", label, named,
+				fmt.Sprintf("character set %q is not decoded; bytes outside ASCII are U+FFFD", named), false,
 				func(count, list string) string {
 					return fmt.Sprintf("%s character sets are not decoded (%s); bytes outside ASCII in them are U+FFFD", count, list)
 				})
 		case res.Replaced:
-			label = clean.Cut(clean.Line(label), 64)
-			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "invalid", label, label,
-				fmt.Sprintf("bytes not valid in character set %q", label), false,
+			named := clean.Cut(clean.Line(label), 64)
+			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "invalid", label, named,
+				fmt.Sprintf("bytes not valid in character set %q", named), false,
 				func(count, list string) string {
 					return fmt.Sprintf("bytes not valid in %s character sets (%s)", count, list)
 				})
@@ -634,10 +643,10 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 			}
 		}
 		access := clean.Cut(clean.Line(params["access-type"]), 64)
-		where = quoteCut(clean.Line(where), 1024)
-		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, "external body", access+"\x00"+where,
-			fmt.Sprintf("%s (access type %q)", where, access),
-			fmt.Sprintf("a part whose content is outside the message (access type %q): %s", access, where), true,
+		quoted := quoteCut(clean.Line(where), 1024)
+		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, "external body", params["access-type"]+"\x00"+where,
+			fmt.Sprintf("%s (access type %q)", quoted, access),
+			fmt.Sprintf("a part whose content is outside the message (access type %q): %s", access, quoted), true,
 			func(count, list string) string {
 				return fmt.Sprintf("parts refer to %s places outside the message for their content: %s", count, list)
 			})
@@ -650,7 +659,9 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 		if v, ok := h.Get("Content-Description"); ok {
 			var c rfc822.Cuts
 			desc, c = rfc822.DecodeText(v, report)
-			m.cuts(c)
+			if depth > 0 {
+				m.cuts(c) // the message's own header is counted where it is read
+			}
 		}
 		r.image(m, mediatype, name, desc, data)
 	}
@@ -819,7 +830,8 @@ func (r *reader) multipart(m *message, mediatype, boundary string, body []byte, 
 			if plain < 0 {
 				one = fmt.Sprintf("%d alternative bodies (%s), none of them text/plain; each is an embedded document", len(subs), list)
 			}
-			m.warnEach(gofastcore.SeverityWarning, WarnAlternatives, "", one, "("+list+")", one, true,
+			value := fmt.Sprint(plain >= 0, "\x00", strings.Join(kinds, "\x00"))
+			m.warnEach(gofastcore.SeverityWarning, WarnAlternatives, "", value, "("+list+")", one, true,
 				func(count, list string) string {
 					return fmt.Sprintf("%s sets of alternative bodies of different kinds: %s; in each, a text/plain body that is not an attachment gives the blocks, the others are embedded documents", count, list)
 				})
@@ -872,7 +884,7 @@ func (r *reader) decode(m *message, cte string, body []byte) ([]byte, bool) {
 		out = body
 	default:
 		v := clean.Cut(clean.Line(cte), 64)
-		m.warnEach(gofastcore.SeverityWarning, WarnUnknownTransferEncoding, "", v, v, fmt.Sprintf("transfer encoding %q; the bytes are taken as they are", v), false,
+		m.warnEach(gofastcore.SeverityWarning, WarnUnknownTransferEncoding, "", cte, v, fmt.Sprintf("transfer encoding %q; the bytes are taken as they are", v), false,
 			func(count, list string) string {
 				return fmt.Sprintf("%s transfer encodings (%s); the bytes are taken as they are", count, list)
 			})

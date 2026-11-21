@@ -327,9 +327,12 @@ Fixed bounds, each reported with `limit.exceeded` where it cuts:
 
 - An attachment's file name: 4,096 bytes. A longer one is cut in the
   middle; its extension is kept.
-- RFC 2231 pieces numbered above 999 are not read.
+- RFC 2231 pieces numbered above 999, of the parameters this library
+  reads, are not read.
 - An encoded word: 4,096 bytes of encoded text and a character set name
-  of 100 bytes. A longer one is left as written.
+  of 100 bytes. A longer one is left as written; where a word does not
+  end within 4,096 bytes, that much text after its start is left as
+  written too, without looking for words in it.
 - A mailbox `From ` line: 1,024 bytes in the headers note.
 - An image description: 4,096 bytes.
 - Outlook messages: 10,000 recipients and 10,000 attachments; 65,536

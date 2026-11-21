@@ -36,7 +36,8 @@ type Cuts struct {
 	// LongLabels: encoded words whose character set name is longer than
 	// MaxLabel bytes, left as written.
 	LongLabels int
-	// Pieces: RFC 2231 pieces numbered above MaxPiece, not read.
+	// Pieces: RFC 2231 pieces numbered above MaxPiece, of a parameter
+	// in Used, not read.
 	Pieces int
 }
 
@@ -122,8 +123,8 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
 			if suffix != "" {
 				var err error
 				if n, err = strconv.Atoi(suffix); err != nil || n < 0 || n > MaxPiece {
-					if digits(suffix) {
-						cuts.Pieces++ // a number past the bound, not a malformed one
+					if digits(suffix) && used(base) {
+						cuts.Pieces++ // a number past the bound, not a malformed one, of a parameter read
 					}
 					continue
 				}

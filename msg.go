@@ -130,8 +130,8 @@ func (r *reader) readProps(m *message, f *cfb.File, prefix []string, headerSize 
 	if !r.takeRead(m, n) {
 		return p
 	}
-	if s.Size() > window {
-		m.warnCount(gofastcore.WarnLimitExceeded, "property entries", int((s.Size()-window+15)/16), func(n int) string {
+	if lost := (s.Size() - window) / 16; lost >= 1 { // whole entries only: a part of one is not read in any case
+		m.warnCount(gofastcore.WarnLimitExceeded, "property entries", int(lost), func(n int) string {
 			return fmt.Sprintf("a property stream has more than %d entries; the fixed-length values (dates, numbers, flags) in the entries past the %dth are not read (%s)", maxFixedEntries, maxFixedEntries, things(n, "entry"))
 		})
 	}
@@ -159,7 +159,7 @@ func (p *props) read(id, typ uint16) ([]byte, bool) {
 	if p.f == nil {
 		v, ok := p.values[uint32(id)<<16|uint32(typ)]
 		if int64(len(v)) > p.limit {
-			p.m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("a property of %d bytes read to %d", len(v), p.limit))
+			p.long(id, typ, int64(len(v)))
 			v = v[:p.limit]
 		}
 		return v, ok
@@ -170,7 +170,7 @@ func (p *props) read(id, typ uint16) ([]byte, bool) {
 	}
 	n := s.Size()
 	if n > p.limit {
-		p.m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("a property of %d bytes read to %d", n, p.limit))
+		p.long(id, typ, n)
 		n = p.limit
 	}
 	if p.r != nil && !p.r.takeRead(p.m, n) {
@@ -179,6 +179,16 @@ func (p *props) read(id, typ uint16) ([]byte, bool) {
 	buf := make([]byte, n)
 	got, _ := s.ReadAt(buf, 0)
 	return buf[:got], true
+}
+
+// long warns, once per part, of the properties longer than the message
+// limit, which are read to that length.
+func (p *props) long(id, typ uint16, size int64) {
+	p.m.warnEach(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, "long property", fmt.Sprintf("%p %04X%04X", p, id, typ),
+		fmt.Sprintf("%d bytes", size), fmt.Sprintf("a property of %d bytes read to %d", size, p.limit), true,
+		func(count, list string) string {
+			return fmt.Sprintf("%s properties longer than %d bytes are read to that length (%s)", count, p.limit, list)
+		})
 }
 
 // takeRead takes n bytes read from a compound file from the decode
@@ -635,8 +645,9 @@ func (r *reader) outlookAttachment(m *message, ap *props, title string, embedded
 		// it is listed, not read.
 		r.child(m, file, "application/x-oleobject", nil, listed)
 	case attachByReference, attachByRefResolve, attachByRefOnly, attachByWebRef:
-		path := quoteCut(clean.Line(firstOf(ap.str(pidAttachLongPathname), ap.str(pidAttachPathname))), 1024)
-		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, "attachment path", path, path,
+		full := clean.Line(firstOf(ap.str(pidAttachLongPathname), ap.str(pidAttachPathname)))
+		path := quoteCut(full, 1024)
+		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, "attachment path", full, path,
 			"an attachment refers to a file outside the message: "+path, true,
 			func(count, list string) string {
 				return fmt.Sprintf("attachments refer to %s files outside the message: %s", count, list)

@@ -142,7 +142,7 @@ func TestLongEnvelope(t *testing.T) {
 	if len(doc.Parts) != 2 {
 		t.Fatalf("%d parts", len(doc.Parts))
 	}
-	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(2025 bytes)", "cut to 1024 bytes")
+	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(2025 bytes as text)", "cut to 1024 bytes")
 	if len(doc.Parts[1].Warnings) != 0 {
 		t.Errorf("second message: %+v", doc.Parts[1].Warnings)
 	}
@@ -275,4 +275,98 @@ func TestWarningsGrouped(t *testing.T) {
 	}
 	doc = extractBytes(t, msgtest.Build(msgtest.Msg{Props: []msgtest.Prop{{ID: 0x0037, Value: "refs"}}, Attachments: atts}), nil)
 	one(t, &doc.Parts[0], gofastcore.WarnInputExternalReference, `attachments refer to 2 files outside the message: "C:\\a.doc"; "C:\\b.doc"`)
+}
+
+// An encoded word in the message's own Content-Description is counted
+// once, though the header is read both as a field and as the part's.
+func TestTopLevelDescriptionCountedOnce(t *testing.T) {
+	word := "=?utf-8?q?" + strings.Repeat("a", 5000) + "?="
+	doc := extract(t, "From: a@example.com\nContent-Type: image/gif\nContent-Description: "+word+"\n\nGIF89a\n", nil)
+	n := 0
+	for _, w := range warnings(&doc.Parts[0], gofastcore.WarnLimitExceeded) {
+		if strings.HasPrefix(w.Message, "encoded words") {
+			n++
+			if !strings.Contains(w.Message, "(1 word)") {
+				t.Errorf("message %q", w.Message)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("%d warnings of encoded words: %+v", n, doc.Parts[0].Warnings)
+	}
+}
+
+// A long run with "=?" all through it and no end is one cut word per
+// bound of text, not one per "=?", and is kept as written.
+func TestLongRunOfWordStarts(t *testing.T) {
+	subject := strings.Repeat("=?a?b?a", 2000)
+	doc := extract(t, "From: a@example.com\nSubject: "+subject+"\n\nBody.\n", nil)
+	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(3 words)")
+	if doc.Metadata.Title != subject {
+		t.Errorf("the subject is not kept as written")
+	}
+}
+
+// Only whole property entries past the bound are counted.
+func TestMsgPropertyEntriesWhole(t *testing.T) {
+	for _, c := range []struct {
+		extra int
+		want  string
+	}{{8, ""}, {24, "(1 entry)"}} {
+		props := make([]byte, 32+16*65536+c.extra)
+		data := msgtest.Compound(map[string][]byte{"__properties_version1.0": props})
+		doc := extractBytes(t, data, nil)
+		ws := warnings(&doc.Parts[0], gofastcore.WarnLimitExceeded)
+		switch {
+		case c.want == "" && len(ws) != 0:
+			t.Errorf("%d bytes past: %+v", c.extra, ws)
+		case c.want != "":
+			one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, c.want)
+		}
+	}
+}
+
+// The length of a cut "From " line is given as the text that is cut.
+func TestLongEnvelopeAsText(t *testing.T) {
+	box := "From " + strings.Repeat("\xffa", 400) + "\nFrom: a@example.com\nSubject: one\n\nBody.\n"
+	doc := extract(t, box, nil)
+	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(1600 bytes as text)")
+	// Bytes not valid UTF-8 in one run are one U+FFFD: nothing is cut.
+	doc = extract(t, "From "+strings.Repeat("\xff", 2000)+"\nFrom: a@example.com\nSubject: one\n\nBody.\n", nil)
+	if len(doc.Parts[0].Warnings) != 0 {
+		t.Errorf("warnings %+v", doc.Parts[0].Warnings)
+	}
+}
+
+// Pieces numbered above 999 are counted only for parameters that are
+// read.
+func TestPiecesOfUnusedParameters(t *testing.T) {
+	msg := "From: a@example.com\nSubject: s\nContent-Type: multipart/mixed; boundary=b\n\n--b\n\nText.\n" +
+		"--b\nContent-Type: application/pdf\nContent-Disposition: attachment; filename=a.pdf; x*1000=1\n\n%PDF\n--b--\n"
+	doc := extract(t, msg, &gofastcore.Options{Child: dispatcher(new([]seen))})
+	if p := &doc.Parts[0]; p.Has(gofastcore.WarnLimitExceeded) {
+		t.Errorf("warnings %+v", p.Warnings)
+	}
+}
+
+// Values cut for the message are told apart by the whole value.
+func TestGroupedOnWholeValue(t *testing.T) {
+	prefix := strings.Repeat("x", 70)
+	doc := extract(t, "From: a@example.com\nSubject: =?"+prefix+"1?q?=E9?= =?"+prefix+"2?q?=E9?=\n\nBody.\n", nil)
+	one(t, &doc.Parts[0], gofastcore.WarnTextUnmappedGlyphs, "2 character sets are not decoded")
+}
+
+// Properties read to the message limit are one warning for the part.
+func TestMsgLongPropertiesGrouped(t *testing.T) {
+	data := msgtest.Build(msgtest.Msg{Props: []msgtest.Prop{
+		{ID: 0x0037, Value: strings.Repeat("s", 300)},
+		{ID: 0x1000, Value: strings.Repeat("b", 400)},
+	}})
+	e := &gofastemail.Extractor{MaxMessageBytes: 200}
+	doc, err := e.Extract(context.Background(), bytes.NewReader(data), int64(len(data)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkDoc(t, doc)
+	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "2 properties longer than 200 bytes are read to that length (602 bytes; 802 bytes)")
 }

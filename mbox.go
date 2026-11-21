@@ -25,7 +25,7 @@ const maxEnvelope = 1024
 type span struct {
 	start, end int64
 	envelope   string
-	// long: the bytes of the "From " line, where it is cut to
+	// long: the bytes of the "From " line as text, where it is cut to
 	// maxEnvelope in the envelope; 0 otherwise.
 	long int
 	// counted: the end was found from a Content-Length header (mboxcl2),
@@ -104,7 +104,7 @@ func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Par
 		return m.part
 	}
 	if s.long > 0 {
-		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the mailbox \"From \" line of this message (%d bytes) is cut to %d bytes in the headers note", s.long, maxEnvelope))
+		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the mailbox \"From \" line of this message (%d bytes as text) is cut to %d bytes in the headers note", s.long, maxEnvelope))
 	}
 	r.message(m, raw, number, s.envelope)
 	return m.part
@@ -155,9 +155,11 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 		if atLineStart && prevBlank && bytes.HasPrefix(chunk, []byte("From ")) {
 			line := bytes.TrimRight(chunk[5:], "\r\n")
 			env := clean.Line(strings.ToValidUTF8(string(line), "�"))
+			// long is counted in what is cut: the line as text (bytes not
+			// valid UTF-8 become U+FFFD, which may make it longer).
 			long := 0
 			if len(env) > maxEnvelope || !whole {
-				long = len(line)
+				long = len(env)
 			}
 			env = clean.Cut(env, maxEnvelope)
 			for !whole { // the rest of a very long line
