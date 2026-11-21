@@ -1,13 +1,52 @@
 # Changelog
 
-Not yet tagged.
+## v0.1.0 (not yet tagged)
 
-## Unreleased: core d4cd8e2
+The first version.
+
+- Formats: single messages (`.eml`, RFC 5322 and MIME: encoded words,
+  RFC 2231 parameters, base64, quoted-printable, every multipart kind,
+  `format=flowed`), mailboxes (`.mbox`: mboxo, mboxrd and mboxcl2, read one
+  message at a time), Outlook messages (`.msg`, MS-OXMSG, with compressed
+  RTF bodies decompressed) and TNEF streams (`winmail.dat`, MS-OXTNEF, in
+  a message or as a file). The format is decided from the bytes.
+- Every message is a part of kind `message`: subject heading, shown
+  headers, text/plain body as paragraphs, quotes and signature, pictures
+  shown in the message as image blocks. HTML and RTF bodies, other
+  alternatives, attachments and attached messages are embedded documents,
+  handed to `Options.Child`; winmail.dat and Outlook messages attached to
+  Outlook messages are read by this library.
+- Character sets: UTF-8, US-ASCII, ISO-8859-1, -9, -11, -15, windows-874,
+  windows-1250 to 1258, Mac OS Roman, UTF-16 in `.msg`, Shift_JIS, GBK and
+  GB2312, EUC-KR, Big5, GB18030, EUC-JP and ISO-2022-JP. Others give
+  U+FFFD with `text.unmapped_glyphs`.
+- Email declares no display of its own: no `Display` reason is reported.
+- Limits: core's `MaxInputBytes`, `MaxDecodedBytes`, `MaxTextBytes`,
+  `MaxParts` and `MaxDepth`, and `Extractor.MaxMessageBytes`,
+  `MaxHeaderBytes`, `MaxMIMEDepth` and `MaxMIMEParts`.
+- `cmd/gofastemail` prints JSON, Markdown or text. Its dispatcher reads
+  attached messages with this library, HTML, XHTML, Markdown and plain
+  text with go-fast-html, and RTF with go-fast-rtf; flags `-format`, `-o`,
+  `-parts`, `-password`, `-max-message-bytes`, `-max-decoded-bytes`,
+  `-max-text-bytes`, `-quiet`, `-version` and the shared render flags
+  `-furniture`, `-stored[=kinds]`, `-part-markers`,
+  `-exclude-display[=reasons]` and `-children`.
+- The library imports only go-fast-core and the standard library; the
+  command adds go-fast-html and go-fast-rtf.
+- Pins: go-fast-core `d4cd8e2` (schema `0.2`); in the command, go-fast-html
+  `bad19e7` and go-fast-rtf `1e98beb` (see `go.mod`).
+
+## Before v0.1.0
+
+Changes made while the first version was written, newest first. The pins
+named are those of the time.
+
+### Core d4cd8e2
 
 - go-fast-core pinned at `d4cd8e2`: `Validate` now rejects an inferred
   `thematic_break`; this library emits only declared ones and passes.
 
-## Unreleased: newer go-fast-html and go-fast-rtf in the command
+### Newer go-fast-html and go-fast-rtf in the command
 
 - The command pins go-fast-html `bad19e7` (Big5 with HKSCS, `iframe
   srcdoc` read in place) and go-fast-rtf `1e98beb` (encapsulated-HTML
@@ -15,7 +54,7 @@ Not yet tagged.
   breaks), and takes go-fast-rtf's stored kinds from its exported
   `StoredKindNames` instead of naming them itself.
 
-## Unreleased: GB18030, EUC-JP and ISO-2022-JP (branch cjk-more)
+### GB18030, EUC-JP and ISO-2022-JP
 
 - `internal/charset` decodes GB18030 (with four-byte sequences and
   supplementary characters), EUC-JP (with half-width katakana and JIS X
@@ -24,14 +63,14 @@ Not yet tagged.
   (code pages 54936, 51932, 50220 to 50222). They gave U+FFFD with a
   warning before.
 - Tables `gb18030-2.txt`, `gb18030-4.txt`, `jis0208.txt`, `jis0212.txt`
-  and their generator `gen/gen_cjk_extra.py`, written by the orchestrator
-  from Python's codecs, parsed on first use.
+  and their generator `gen/gen_cjk_extra.py`, from Python's codecs,
+  parsed on first use.
 - GB18030 0xA8BC is U+1E3F and four-byte pointer 7457 U+E7C7, as the
   Encoding Standard has them (the generated table has them swapped).
 - `gbk` and `gb2312` stay on code page 936.
 - `FuzzDecodeCJK`.
 
-## Unreleased: stored kinds (branch stored-kinds)
+### Stored kinds
 
 - Pins go-fast-core `ebecf3c`, go-fast-html `af97571`, go-fast-rtf
   `259ac69`.
@@ -46,7 +85,7 @@ Not yet tagged.
   `body.html` child (go-fast-rtf): `poi-message_1979.msg` and
   `poi-message_1980.msg` give their text from the HTML, with no U+FFFD.
 
-## Unreleased: double-byte character sets (branch dbcs)
+### Double-byte character sets
 
 - `internal/charset` decodes Shift_JIS (cp932), GBK/GB2312 (cp936),
   EUC-KR (cp949) and Big5 (cp950) under their WHATWG labels and `cpNNN`,
@@ -58,7 +97,7 @@ Not yet tagged.
   remain undecoded.
 - `TestCharsets` uses `euc-jp`, not `shift_jis`, as its undecoded set.
 
-## Unreleased: the command against real mail
+### The command against real mail
 
 - A `.msg` body's code page (`PR_INTERNET_CPID`, `PR_MESSAGE_CODEPAGE`) is
   passed on by its WHATWG label (`windows-1251`, `shift_jis`, `gbk`,
@@ -82,7 +121,7 @@ Not yet tagged.
   command's dispatcher over the dev corpus; fails on a panic, a timeout,
   an invalid document or `child.failed`. Skipped without the corpus.
 
-## Unreleased: children in the command
+### Children in the command
 
 - go-fast-core pinned at `787b056` (`RenderOptions.Children`).
 - `cmd/gofastemail` reads HTML and RTF bodies and attachments: its
@@ -99,7 +138,7 @@ Not yet tagged.
   embedded document after a line naming it; `-children=false` leaves them
   out. Previously the command printed the top-level document only.
 
-## Unreleased: command flags
+### Command flags
 
 - `cmd/gofastemail` has the shared render flags of the go-fast commands
   (decided 2026-11-20): `-furniture`, `-stored` and
@@ -108,7 +147,7 @@ Not yet tagged.
   now has the shared help text. Markdown and text only; JSON is
   unchanged.
 
-## Unreleased: declared, not judged (breaking)
+### Declared, not judged
 
 - go-fast-core pinned at `05bbddb`: schema `0.2`. `Hidden` is now
   `Display` (JSON `display`), with the reasons `hidden` and `no_ink`;

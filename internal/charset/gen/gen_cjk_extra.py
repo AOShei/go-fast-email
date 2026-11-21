@@ -3,8 +3,8 @@
 
 Usage: python3 internal/charset/gen/gen_cjk_extra.py internal/charset/tables
 
-Written by the orchestrator of the go-fast agents on 2026-11-20, from
-Python's own codecs (the version is written into each file's header).
+The tables come from Python's own codecs (the Python version is written
+into each file's header).
 Every line after the header is "KEY VALUE", both hexadecimal.
 
 gb18030-2.txt     two-byte GB18030: lead byte and trail byte as four hex

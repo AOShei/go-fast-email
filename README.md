@@ -1,12 +1,14 @@
 # go-fast-email
 
-Extracts email (`.eml`, `.mbox`, Outlook `.msg`) into the shared go-fast
-document model, [`gofastcore.Document`](https://github.com/AOShei/go-fast-core).
+Extracts email (`.eml`, `.mbox`, Outlook `.msg`, TNEF `winmail.dat`) into
+the shared go-fast document model,
+[`gofastcore.Document`](https://github.com/AOShei/go-fast-core).
 The library uses the standard library and go-fast-core only; its command
 also uses go-fast-html and go-fast-rtf.
 
-**Status: first version, not tagged.** The plan and what is left are in
-[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
+**Status: v0.1.0 (not yet tagged).** How it was built is in
+[`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) (development history);
+the changes are in [`CHANGELOG.md`](CHANGELOG.md).
 
 | Format | State |
 |---|---|
@@ -35,15 +37,23 @@ that begins with a header field is a message.
 
 **Extractors do not import each other.** Every attachment, every attached
 message, and every HTML or RTF body is handed to `Options.Child` through
-`opts.ExtractChild`, and the result is appended to `Document.Children`.
-Without a `Child` function each is listed with its name and size and a
-`child.not_extracted` warning. The media type given to the dispatcher is
-the part's `Content-Type` value; for text it carries the charset parameter
-(`text/html; charset=iso-8859-1`), which the child's extractor needs. An
-Outlook message attached to an Outlook message is a storage of the same
-file, not a file of its own, so it is read by this library, through
-`ExtractChild` all the same (media type `application/vnd.ms-outlook`), so
-that the depth limit and the budgets apply.
+`opts.ExtractChild` (with the two exceptions below), and the result is
+appended to `Document.Children`. Without a `Child` function each is listed
+with its name and size and a `child.not_extracted` warning. The media
+type given to the dispatcher is the part's `Content-Type` value; for text
+it carries the charset parameter (`text/html; charset=iso-8859-1`), which
+the child's extractor needs.
+
+Two kinds of embedded document are read by this library itself, with or
+without a `Child` function, and `Child` is not called for them: a
+winmail.dat that begins with the TNEF signature, and a message attached
+inside one, which is a TNEF stream too (see Bodies below; media type
+`application/ms-tnef`); and an Outlook message attached to an Outlook
+message, which is a storage of the same file, not a file of its own
+(media type `application/vnd.ms-outlook`). Both still go through
+`ExtractChild`, so that the depth limit and the budgets apply, and what
+they hold goes to `Child` in turn. An attached `.eml` (`message/rfc822`)
+is not one of them: it goes to `Child` like any other attachment.
 
 `cmd/gofastemail` prints JSON, Markdown or text:
 
@@ -78,8 +88,30 @@ Every other attachment is listed with its name and size
 imports go-fast-html and go-fast-rtf; the library package imports core
 and the standard library only, and a test checks that.
 
-It has the render flags every go-fast command has. They change Markdown
-and text only; JSON always has everything.
+The command takes files and directories. A directory stands for the files
+in it and below it with the extension `.eml`, `.mbox`, `.mbx` or `.msg`; a
+file named on the command line is read whatever its name, so a
+winmail.dat is read when it is named. With one input the JSON is
+indented; with several, each document is one line of JSON, and in
+Markdown and text a line naming the file comes before each document.
+Only the documents go to standard output. A document with warnings of
+severity error is named on standard error with their codes. The exit
+status is 1 if an input could not be read, 2 for a usage error.
+
+| Flag | Effect |
+|---|---|
+| `-format` | `json` (the default), `markdown` or `text` |
+| `-o file` | write to the file instead of standard output |
+| `-parts n`, `-parts a-b` | read only these messages, by number (a mailbox's messages count from 1) |
+| `-password` | sets `Options.Password`, which reaches every extractor the command runs, those of embedded documents included; none of the formats the command reads (this library, go-fast-html, go-fast-rtf) uses it today |
+| `-max-message-bytes` | `Extractor.MaxMessageBytes`: bytes of one message held in memory (0: the default, 256 MiB; -1: no limit) |
+| `-max-decoded-bytes` | `Limits.MaxDecodedBytes`: bytes decoded in a file and its embedded documents (0: the default, 2 GiB; -1: no limit) |
+| `-max-text-bytes` | `Limits.MaxTextBytes`: bytes of text in a document and its embedded documents (0: the default, 256 MiB; -1: no limit) |
+| `-quiet` | say nothing on standard error about documents that were read; failures are still reported |
+| `-version` | print the version and exit |
+
+It also has the render flags every go-fast command has. They change
+Markdown and text only; JSON always has everything.
 
 | Flag | Effect |
 |---|---|
@@ -98,11 +130,11 @@ Markdown); an HTML-only message's text is therefore in its child.
 
 The kinds `-stored` accepts are core's `gofastcore.StoredKindNames`,
 go-fast-html's `gofasthtml.StoredKindNames` (`manifest_item`,
-`stylesheet`) and go-fast-rtf's `generator` and `custom_property`
-(go-fast-rtf exports no list, so the command names them); this library
-defines none of its own. An HTML body's `<!-- comments -->` are stored
-`markup_comment` by go-fast-html: left out by default, shown with
-`-stored=markup_comment` or `-stored`. HTML that an Outlook message keeps
+`stylesheet`) and go-fast-rtf's `gofastrtf.StoredKindNames`
+(`generator`, `custom_property`); this library defines none of its own.
+An HTML body's `<!-- comments -->` are stored `markup_comment` by
+go-fast-html: left out by default, shown with `-stored=markup_comment` or
+`-stored`. HTML that an Outlook message keeps
 encapsulated in RTF is handed on by go-fast-rtf as a `body.html` child,
 and its text comes from there.
 
@@ -165,7 +197,9 @@ holds the transport headers Outlook keeps, `message-class` and
   old `attBody` in its code page) as blocks; the HTML and compressed RTF
   bodies, the attachments and attached messages (read recursively) as its
   own embedded documents, as for an Outlook message. Named and
-  multi-valued properties are not read.
+  multi-valued properties are not read. TNEF has been tested only on
+  streams the tests build, written from [MS-OXTNEF], never on a
+  winmail.dat written by Outlook: the public corpus has none.
 - **message/rfc822** and every other part go to `ExtractChild`, named by
   their `filename` or `name` parameter.
 - **Outlook:** `PR_BODY` gives the blocks; `PR_HTML` (as `text/html`, with
@@ -188,11 +222,10 @@ bytes outside ASCII become U+FFFD and the part has a `text.unmapped_glyphs`
 warning that names the set (none when the text is all ASCII, since then
 nothing is lost). The tables' sources are in [`NOTICE`](NOTICE).
 
-The double-byte code pages are decoded when their generated tables are in
-`internal/charset/tables` (see the `README.txt` there; this branch does
-not yet contain them): Shift_JIS (code page 932; labels `shift_jis`,
-`sjis`, `ms932`, `windows-31j`, `x-sjis`, `csshiftjis`, `ms_kanji`), GBK
-and GB2312 (936; `gbk`, `gb2312`, `chinese`, `csgb2312`, `gb_2312-80`,
+The double-byte code pages are decoded from their generated tables in
+`internal/charset/tables` (see the `README.txt` there): Shift_JIS (code
+page 932; labels `shift_jis`, `sjis`, `ms932`, `windows-31j`, `x-sjis`,
+`csshiftjis`, `ms_kanji`), GBK and GB2312 (936; `gbk`, `gb2312`, `chinese`, `csgb2312`, `gb_2312-80`,
 `iso-ir-58`, `x-gbk`, `cp936`), EUC-KR (949; `euc-kr`, `ks_c_5601-1987`,
 `windows-949`, `cseuckr`, `korean`, `cp949`) and Big5 (950; `big5`,
 `big5-hkscs`, `cn-big5`, `csbig5`, `x-x-big5`, `cp950`), in headers,

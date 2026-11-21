@@ -1,10 +1,14 @@
 # go-fast-email: implementation plan
 
+Development history: how the first version (v0.1.0) was built, phase by
+phase. What the library does now is in the [README](README.md).
+
 Module `github.com/AOShei/go-fast-email`, package `gofastemail`. Extracts
-`.eml`, `.mbox` and Outlook `.msg` into `gofastcore.Document` (core pinned at
-commit d4cd8e2, schema 0.2). The library: standard library and go-fast-core
-only. The command also imports go-fast-html (bad19e7) and go-fast-rtf
-(1e98beb), to read HTML and RTF bodies and attachments as children.
+`.eml`, `.mbox`, Outlook `.msg` and TNEF `winmail.dat` into
+`gofastcore.Document` (core pinned at commit d4cd8e2, schema 0.2). The
+library: standard library and go-fast-core only. The command also imports
+go-fast-html (bad19e7) and go-fast-rtf (1e98beb), to read HTML and RTF
+bodies and attachments as children.
 
 **Display (declared, not judged; Andrew, 2026-11-20, supersedes runs 3 and
 4).** The library reports only what a file declares about display, and
@@ -12,8 +16,7 @@ email declares nothing of its own: no `Display` reason anywhere in this
 library's output. Headers, preamble and epilogue keep their provenance;
 HTML/RTF bodies' extractors report their own format's declarations.
 `PR_ATTACHMENT_HIDDEN` sets no reason. No outlier rule, no header lists,
-no `HiddenChecked`, no hidden warnings. See
-`../HANDOFF_DECLARED_NOT_JUDGED.md` and `../DECLARED_REPORT_EMAIL.md`.
+no `HiddenChecked`, no hidden warnings.
 
 ## Mapping (decided in run 1)
 
@@ -47,15 +50,6 @@ no `HiddenChecked`, no hidden warnings. See
   `Metadata.Extra` only (no block). In an mbox they are the `note` block above,
   since the metadata is the file's.
 
-## Notes for later runs
-
-- The Edit tool turns `\uXXXX` written in a new string into the literal
-  character. Write invisible characters in Go source as `\U0000XXXX`, and run
-  the hygiene grep before each commit:
-  `grep -rnP '[\p{Cf}\p{Co}\p{Zl}\p{Zp}\x{FB00}-\x{FB06}\x{00}-\x{08}\x{0B}-\x{1F}\x{7F}-\x{9F}]|(?![ ])\p{Zs}' --include=*.go .`
-- `sed -i` and `cp` from sibling repositories are refused; write files with
-  Edit.
-
 ## Phases
 
 | Phase | Delivers | Status |
@@ -76,25 +70,23 @@ no `HiddenChecked`, no hidden warnings. See
 | 12. double-byte sets | Shift_JIS, GBK/GB2312, EUC-KR, Big5 decoded everywhere this library decodes (decoder and tables from go-fast-html `be5c679`); `FuzzDecodeDBCS` | done |
 | 13. stored kinds | core ebecf3c (`RenderOptions.StoredKinds`, `StoredKindNames`), go-fast-html af97571 (comments stored `markup_comment`), go-fast-rtf 259ac69 (encapsulated HTML as `body.html`); `-stored[=kinds]` accepting core's, go-fast-html's and go-fast-rtf's kinds; `TestStoredFlag`, `TestStoredUnknownKind`, `TestStoredMarkupComment` | done |
 | 14. more CJK sets | GB18030 (four-byte and supplementary), EUC-JP (with JIS X 0212) and ISO-2022-JP decoded as the WHATWG decoders, from tables written by `gen/gen_cjk_extra.py`; `gbk`/`gb2312` stay on cp936; `FuzzDecodeCJK`, `TestCJKEncodedWords`, `TestCJKBody`, `TestCJKMsgCodepage` | done |
-| 15. next | see below | todo |
+| 15. release docs | package doc comment, README, CHANGELOG and NOTICE brought up to date for v0.1.0 | done |
 
-## Next (in order)
+## Open items at v0.1.0
 
-1. Check against real mail: the dev corpus has been run through the
-   command (realworld-1); still missing are Gmail and Apple Mail exports
-   and a real winmail.dat (the TNEF property encoding was written from
-   [MS-OXTNEF] as remembered, with no copy of the spec at hand). Charsets
-   seen in the corpus and not decoded: `unknown-8bit`. (GB2312, GB18030
-   and Big5 are now decoded.) The GB18030 two-byte table is from Python's
-   codec (GB 18030-2000/2005 mappings); check it against the Encoding
-   Standard's current index-gb18030, which took GB 18030-2022's changes
-   for some 0xA6xx and 0xFExx pairs.
-2. Run 3 added windows-874, 1250-1258 and Mac Roman (tables copied from
-   go-fast-rtf, verified there against Python's codecs), and ISO-8859-9/-11
-   by the WHATWG aliases. Still not decoded: KOI8-R/U and ISO-8859-2 to -8,
-   -10, -13, -14, -16. Generate them from the WHATWG indexes or Unicode
-   mapping files, and verify byte for byte (as go-fast-rtf did), with
-   provenance. Until then they become U+FFFD with a warning.
+1. Real mail: the dev corpus has been run through the command
+   (realworld-1); not yet tried are Gmail and Apple Mail exports and a
+   winmail.dat written by Outlook (the TNEF property encoding was written
+   from [MS-OXTNEF] as remembered, and tested only on streams the tests
+   build). Charsets seen in the corpus and not decoded: `unknown-8bit`.
+   The GB18030 two-byte table is from Python's codec (GB 18030-2000/2005
+   mappings); it has not been compared in full with the Encoding Standard's
+   current index-gb18030, which took GB 18030-2022's changes for some
+   0xA6xx and 0xFExx pairs.
+2. Not decoded: KOI8-R/U and ISO-8859-2 to -8, -10, -13, -14, -16. They
+   would be generated from the WHATWG indexes or Unicode mapping files and
+   verified byte for byte (as go-fast-rtf did), with provenance. Until
+   then they become U+FFFD with a warning.
 3. `.msg` and TNEF: named properties (`__nameid_version1.0`; named entries
    of TNEF property lists), for categories and meeting details (location,
    start, end of an IPM.Appointment / meeting request).

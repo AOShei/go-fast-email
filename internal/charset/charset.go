@@ -3,12 +3,12 @@
 //
 // It knows UTF-8, US-ASCII, ISO-8859-1, ISO-8859-9, ISO-8859-11 (TIS-620),
 // ISO-8859-15, windows-874 and windows-1250 to 1258, Mac OS Roman and
-// UTF-16, and the double-byte code pages 932 (Shift_JIS), 936 (GBK and
-// GB2312), 949 (EUC-KR) and 950 (Big5) when their tables are present in
-// tables/ (dbcs.go), and GB18030, EUC-JP and ISO-2022-JP from theirs
-// (cjk.go). KOI8 is not decoded. Any other character set is not guessed
-// at: bytes outside ASCII
-// become U+FFFD, and the caller says so in a warning that names the set.
+// UTF-16, the double-byte code pages 932 (Shift_JIS), 936 (GBK and
+// GB2312), 949 (EUC-KR) and 950 (Big5) (dbcs.go), and GB18030, EUC-JP and
+// ISO-2022-JP (cjk.go), from the tables in tables/, which are embedded in
+// the binary. KOI8 is not decoded. Any other character set is not guessed
+// at: bytes outside ASCII become U+FFFD, and the caller says so in a
+// warning that names the set.
 // Decoding a multi-byte set as a single-byte one would produce text that
 // looks like text and is not.
 package charset
