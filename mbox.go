@@ -25,6 +25,9 @@ const maxEnvelope = 1024
 type span struct {
 	start, end int64
 	envelope   string
+	// long: the bytes of the "From " line, where it is cut to
+	// maxEnvelope in the envelope; 0 otherwise.
+	long int
 	// counted: the end was found from a Content-Length header (mboxcl2),
 	// so lines in the body that begin ">From " are as the sender wrote
 	// them and are not unquoted.
@@ -97,8 +100,11 @@ func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Par
 	// mailbox of a great many empty messages is bounded too.
 	if !r.take(m, gofastcore.BlockCost) {
 		m.part.Kind, m.part.Number = gofastcore.PartMessage, number
-		m.part.Finish()
+		m.finish()
 		return m.part
+	}
+	if s.long > 0 {
+		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the mailbox \"From \" line of this message (%d bytes) is cut to %d bytes in the headers note", s.long, maxEnvelope))
 	}
 	r.message(m, raw, number, s.envelope)
 	return m.part
@@ -147,10 +153,17 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 			return err
 		}
 		if atLineStart && prevBlank && bytes.HasPrefix(chunk, []byte("From ")) {
-			env := clean.Cut(clean.Line(strings.ToValidUTF8(string(bytes.TrimRight(chunk[5:], "\r\n")), "�")), maxEnvelope)
+			line := bytes.TrimRight(chunk[5:], "\r\n")
+			env := clean.Line(strings.ToValidUTF8(string(line), "�"))
+			long := 0
+			if len(env) > maxEnvelope || !whole {
+				long = len(line)
+			}
+			env = clean.Cut(env, maxEnvelope)
 			for !whole { // the rest of a very long line
 				chunk, err = br.ReadSlice('\n')
 				off += int64(len(chunk))
+				long += len(bytes.TrimRight(chunk, "\r\n"))
 				whole = !errors.Is(err, bufio.ErrBufferFull)
 			}
 			if cur != nil {
@@ -159,7 +172,7 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 					return nil
 				}
 			}
-			cur = &span{start: off, envelope: env}
+			cur = &span{start: off, envelope: env, long: long}
 			if end, ok := countedEnd(src, size, off, maxHeader); ok {
 				cur.end, cur.counted = end, true
 				if !emit(*cur) {

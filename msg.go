@@ -93,6 +93,10 @@ const (
 // message.
 const maxStorages = 10_000
 
+// maxFixedEntries bounds the entries read from the property stream of one
+// object (a message, a recipient, an attachment).
+const maxFixedEntries = 65536
+
 // props reads the properties of one object: a message, a recipient or an
 // attachment.
 type props struct {
@@ -121,9 +125,15 @@ func (r *reader) readProps(m *message, f *cfb.File, prefix []string, headerSize 
 	if err != nil {
 		return p
 	}
-	n := min(s.Size(), int64(headerSize)+16*65536)
+	window := int64(headerSize) + 16*maxFixedEntries
+	n := min(s.Size(), window)
 	if !r.takeRead(m, n) {
 		return p
+	}
+	if s.Size() > window {
+		m.warnCount(gofastcore.WarnLimitExceeded, "property entries", int((s.Size()-window+15)/16), func(n int) string {
+			return fmt.Sprintf("a property stream has more than %d entries; the fixed-length values (dates, numbers, flags) in the entries past the %dth are not read (%s)", maxFixedEntries, maxFixedEntries, things(n, "entry"))
+		})
 	}
 	buf := make([]byte, n)
 	got, _ := s.ReadAt(buf, 0)
@@ -453,11 +463,14 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 	// The headers the message had in transit, which Outlook keeps and
 	// does not show.
 	if h := p.str(pidTransportHeaders); h != "" {
-		fields, _, _ := rfc822.ParseHeader([]byte(h), r.e.maxHeader())
+		fields, _, prob := rfc822.ParseHeader([]byte(h), r.e.maxHeader())
+		r.headerLimits(m, prob)
 		extra = joinFields(extra, len(fields), func(yield func(k, v string)) {
 			for _, fl := range fields {
 				k := strings.ToLower(clean.Line(fl.Name))
-				v := line(rfc822.DecodeText(fl.Value, m.charsetReport()))
+				d, c := rfc822.DecodeText(fl.Value, m.charsetReport())
+				m.cuts(c)
+				v := line(d)
 				if k == "" {
 					continue
 				}
@@ -606,7 +619,7 @@ func (r *reader) outlookAttachments(m *message, f *cfb.File, prefix []string, la
 // properties give none; embedded reads an attached message.
 func (r *reader) outlookAttachment(m *message, ap *props, title string, embedded func(file string, listed bool)) {
 	method, _ := ap.int32(pidAttachMethod)
-	file := clean.Cut(clean.Line(firstOf(ap.str(pidAttachLongFilename), ap.str(pidAttachFilename), ap.str(pidDisplayName), title)), maxNameBytes)
+	file := m.fileName(firstOf(ap.str(pidAttachLongFilename), ap.str(pidAttachFilename), ap.str(pidDisplayName), title))
 	mime := strings.ToLower(clean.Line(ap.str(pidAttachMimeTag)))
 	if !rfc822.Token(mime) || !strings.Contains(mime, "/") {
 		mime = "application/octet-stream"
@@ -622,8 +635,12 @@ func (r *reader) outlookAttachment(m *message, ap *props, title string, embedded
 		// it is listed, not read.
 		r.child(m, file, "application/x-oleobject", nil, listed)
 	case attachByReference, attachByRefResolve, attachByRefOnly, attachByWebRef:
-		path := clean.Cut(clean.Line(firstOf(ap.str(pidAttachLongPathname), ap.str(pidAttachPathname))), 1024)
-		m.warn(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, fmt.Sprintf("an attachment refers to a file outside the message: %q", path))
+		path := quoteCut(clean.Line(firstOf(ap.str(pidAttachLongPathname), ap.str(pidAttachPathname))), 1024)
+		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, "attachment path", path, path,
+			"an attachment refers to a file outside the message: "+path, true,
+			func(count, list string) string {
+				return fmt.Sprintf("attachments refer to %s files outside the message: %s", count, list)
+			})
 		r.child(m, file, mime, nil, listed)
 	default:
 		data, ok := ap.read(pidAttachData, ptBinary)

@@ -3,6 +3,7 @@ package rfc822
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -38,33 +39,82 @@ func TestDecodeText(t *testing.T) {
 		{"=?utf-8?x?abc?=", "=?utf-8?x?abc?="},
 		{"=?utf-8*en?q?x?=", "x"},
 	} {
-		if got := DecodeText([]byte(c.in), report); got != c.want {
+		if got, _ := DecodeText([]byte(c.in), report); got != c.want {
 			t.Errorf("DecodeText(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 	reported = nil
-	if got := DecodeText([]byte("=?koi8-r?q?=C1?="), report); got != "�" || len(reported) != 1 || reported[0] != "koi8-r" {
+	if got, _ := DecodeText([]byte("=?koi8-r?q?=C1?="), report); got != "�" || len(reported) != 1 || reported[0] != "koi8-r" {
 		t.Errorf("unknown charset: %q, reported %q", got, reported)
 	}
 }
 
 func TestParams(t *testing.T) {
-	v, p := Params([]byte(`Text/Plain; charset="utf-8"; format=flowed;; name="a \"b\".txt"`), nil)
+	v, p, _ := Params([]byte(`Text/Plain; charset="utf-8"; format=flowed;; name="a \"b\".txt"`), nil)
 	if v != "text/plain" || p["charset"] != "utf-8" || p["format"] != "flowed" || p["name"] != `a "b".txt` {
 		t.Fatalf("got %q %q", v, p)
 	}
 	// RFC 2231: continuations and the extended form.
-	_, p = Params([]byte(`attachment; filename*0*=utf-8''r%C3%A9sum; filename*1="e.pdf"; filename="fallback.pdf"`), nil)
+	_, p, _ = Params([]byte(`attachment; filename*0*=utf-8''r%C3%A9sum; filename*1="e.pdf"; filename="fallback.pdf"`), nil)
 	if p["filename"] != "résume.pdf" {
 		t.Fatalf("2231: %q", p)
 	}
-	_, p = Params([]byte(`attachment; filename*=iso-8859-1'fr'caf%E9.txt`), nil)
+	_, p, _ = Params([]byte(`attachment; filename*=iso-8859-1'fr'caf%E9.txt`), nil)
 	if p["filename"] != "café.txt" {
 		t.Fatalf("2231 latin1: %q", p)
 	}
-	_, p = Params([]byte(`attachment; filename="=?utf-8?B?w6kudHh0?="`), nil)
+	_, p, _ = Params([]byte(`attachment; filename="=?utf-8?B?w6kudHh0?="`), nil)
 	if p["filename"] != "é.txt" {
 		t.Fatalf("encoded word in a quoted value: %q", p)
+	}
+}
+
+// TestParamsPastBound: past MaxParams parameters the ones the reader uses
+// are still read, the others are counted; RFC 2231 pieces past MaxPiece
+// are counted.
+func TestParamsPastBound(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("multipart/mixed")
+	for i := range 100 {
+		fmt.Fprintf(&b, "; x%d=%d", i, i)
+	}
+	b.WriteString(`; boundary="b1"; charset=utf-8; filename*0="a"; filename*1="b.pdf"; filename*1000="c"`)
+	v, p, c := Params([]byte(b.String()), nil)
+	if v != "multipart/mixed" || p["boundary"] != "b1" || p["charset"] != "utf-8" || p["filename"] != "ab.pdf" {
+		t.Fatalf("got %q %q", v, p)
+	}
+	if _, ok := p["x70"]; ok || p["x10"] != "10" {
+		t.Fatalf("x70 or x10: %q", p)
+	}
+	// 64 kept (x0 to x63), x64 to x99 counted.
+	if c.Params != 36 || c.Pieces != 1 {
+		t.Fatalf("cuts %+v", c)
+	}
+	// Under the bound nothing is counted.
+	if _, _, c := Params([]byte(`text/plain; a=1; name*5="x"; name*abc="y"`), nil); c != (Cuts{}) {
+		t.Fatalf("cuts under the bound: %+v", c)
+	}
+}
+
+// TestDecodeTextBounds: encoded words kept from being decoded by MaxWord
+// or MaxLabel are counted, others that are not words are not.
+func TestDecodeTextBounds(t *testing.T) {
+	long := "=?utf-8?q?" + strings.Repeat("a", MaxWord+10) + "?="
+	if got, c := DecodeText([]byte(long), nil); got != long || c.LongWords != 1 {
+		t.Fatalf("long word: %d bytes, %+v", len(got), c)
+	}
+	label := "=?" + strings.Repeat("x", MaxLabel+1) + "?q?=E9?="
+	if got, c := DecodeText([]byte(label), nil); got != label || c.LongLabels != 1 {
+		t.Fatalf("long label: %q, %+v", got, c)
+	}
+	for _, s := range []string{"=?utf-8?q?" + strings.Repeat("a ", MaxWord), "=?broken", "=?utf-8?x?abc?=", "a =?utf-8?q?ok?= b"} {
+		if _, c := DecodeText([]byte(s), nil); c != (Cuts{}) {
+			t.Fatalf("%.40q: %+v", s, c)
+		}
+	}
+	// A long word in a quoted parameter value is counted through Params.
+	if _, _, c := Params([]byte(`attachment; filename="`+long+`"`), nil); c.LongWords != 1 {
+		t.Fatalf("Params: %+v", c)
 	}
 }
 

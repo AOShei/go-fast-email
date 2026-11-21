@@ -17,10 +17,10 @@ func FuzzHeader(f *testing.F) {
 			t.Fatalf("body at %d of %d", at, len(data))
 		}
 		for _, field := range h {
-			if s := DecodeText(field.Value, nil); !utf8.ValidString(s) {
+			if s, _ := DecodeText(field.Value, nil); !utf8.ValidString(s) {
 				t.Fatalf("DecodeText gave invalid UTF-8 %q", s)
 			}
-			v, p := Params(field.Value, nil)
+			v, p, _ := Params(field.Value, nil)
 			if !utf8.ValidString(v) {
 				t.Fatalf("Params value %q", v)
 			}
