@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,10 +69,14 @@ func TestDisplayFlag(t *testing.T) {
 		{"nope", 0, true},
 	}
 	for _, c := range cases {
-		var f displayFlag
-		err := f.Set(c.value)
-		if (err != nil) != c.err || (err == nil && f.reasons != c.want) {
-			t.Errorf("Set(%q) = %v, %v; want %v, error %v", c.value, f.reasons, err, c.want, c.err)
+		fs := flag.NewFlagSet("t", flag.ContinueOnError)
+		fs.SetOutput(&bytes.Buffer{})
+		rf := gofastcore.AddRenderFlags(fs)
+		err := fs.Parse([]string{"-exclude-display=" + c.value})
+		var ro gofastcore.RenderOptions
+		rf.Apply(&ro)
+		if (err != nil) != c.err || (err == nil && ro.ExcludeDisplay != c.want) {
+			t.Errorf("-exclude-display=%s: %v, %v; want %v, error %v", c.value, ro.ExcludeDisplay, err, c.want, c.err)
 		}
 	}
 }

@@ -128,10 +128,10 @@ the message's own parts, depth first, after a line naming it
 (`[child 1: report.rtf]` in text, `<!-- child 1: report.rtf -->` in
 Markdown); an HTML-only message's text is therefore in its child.
 
-The kinds `-stored` accepts are core's `gofastcore.StoredKindNames`,
-go-fast-html's `gofasthtml.StoredKindNames` (`manifest_item`,
-`stylesheet`) and go-fast-rtf's `gofastrtf.StoredKindNames`
-(`generator`, `custom_property`); this library defines none of its own.
+The kinds `-stored` accepts are core's `gofastcore.StoredKindNames()`,
+which include those go-fast-html (`manifest_item`, `stylesheet`) and
+go-fast-rtf (`generator`, `custom_property`) write; this library writes
+none itself.
 An HTML body's `<!-- comments -->` are stored `markup_comment` by
 go-fast-html: left out by default, shown with `-stored=markup_comment` or
 `-stored`. HTML that an Outlook message keeps

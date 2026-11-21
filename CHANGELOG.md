@@ -33,10 +33,22 @@ The first version.
   `-exclude-display[=reasons]` and `-children`.
 - The library imports only go-fast-core and the standard library; the
   command adds go-fast-html and go-fast-rtf.
-- Pins: go-fast-core `d4cd8e2` (schema `0.2`); in the command, go-fast-html
+- Pins: go-fast-core `4499357` (schema `0.2`); in the command, go-fast-html
   `bad19e7` and go-fast-rtf `1e98beb` (see `go.mod`).
 
 ## Before v0.1.0
+
+### Core 4499357: closed value sets, shared render flags
+
+- go-fast-core pinned at `4499357`. The roles `headers` and `signature`
+  and the note types `headers`, `mime_preamble` and `mime_epilogue` are
+  now core's (`gofastcore.RoleHeaders`, `RoleSignature`, `NoteHeaders`,
+  `NoteMIMEPreamble`, `NoteMIMEEpilogue`); the constants here are the
+  same values.
+- Command: the render flags are core's `AddRenderFlags`; their names,
+  values and errors are unchanged. `-stored` accepts core's
+  `StoredKindNames()`, which now include go-fast-html's and
+  go-fast-rtf's kinds.
 
 Changes made while the first version was written, newest first. The pins
 named are those of the time.

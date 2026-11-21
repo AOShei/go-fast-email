@@ -39,18 +39,24 @@ func TestStoredFlag(t *testing.T) {
 	for _, c := range cases {
 		fs := flag.NewFlagSet("t", flag.ContinueOnError)
 		fs.SetOutput(&bytes.Buffer{})
-		var s storedFlag
-		fs.Var(&s, "stored", "")
+		rf := gofastcore.AddRenderFlags(fs)
 		err := fs.Parse(c.args)
-		if (err != nil) != c.err || (err == nil && (s.all != c.all || !slices.Equal(s.kinds, c.kinds))) {
-			t.Errorf("%v: all %v kinds %v err %v; want %v %v error %v", c.args, s.all, s.kinds, err, c.all, c.kinds, c.err)
+		var ro gofastcore.RenderOptions
+		rf.Apply(&ro)
+		if (err != nil) != c.err || (err == nil && (ro.Stored != c.all || !slices.Equal(ro.StoredKinds, c.kinds))) {
+			t.Errorf("%v: all %v kinds %v err %v; want %v %v error %v", c.args, ro.Stored, ro.StoredKinds, err, c.all, c.kinds, c.err)
 		}
 	}
-	// Every kind of core, go-fast-html and go-fast-rtf is accepted.
-	for _, k := range append(append(slices.Clone(gofastcore.StoredKindNames), gofasthtml.StoredKindNames...), gofastrtf.StoredKindNames...) {
-		var s storedFlag
-		if err := s.Set(k); err != nil {
-			t.Errorf("Set(%q): %v", k, err)
+	// Every kind is accepted, those go-fast-html and go-fast-rtf write
+	// included.
+	kinds := append(gofastcore.StoredKindNames(), gofasthtml.StoredManifestItem, gofasthtml.StoredStylesheet,
+		gofastrtf.StoredGenerator, gofastrtf.StoredCustomProperty)
+	for _, k := range kinds {
+		fs := flag.NewFlagSet("t", flag.ContinueOnError)
+		fs.SetOutput(&bytes.Buffer{})
+		gofastcore.AddRenderFlags(fs)
+		if err := fs.Parse([]string{"-stored=" + k}); err != nil {
+			t.Errorf("-stored=%s: %v", k, err)
 		}
 	}
 }
