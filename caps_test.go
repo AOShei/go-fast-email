@@ -92,8 +92,9 @@ func extractBytes(t *testing.T, data []byte, opts *gofastcore.Options) *gofastco
 	return doc
 }
 
-// Past 64 parameters the ones this library reads are still read; the
-// others are counted in one warning.
+// Past 64 parameters the ones this library reads are still read, with no
+// warning (the others are not used); a piece numbered above 999 is
+// reported.
 func TestManyParameters(t *testing.T) {
 	var junk strings.Builder
 	for i := range 70 {
@@ -110,9 +111,8 @@ func TestManyParameters(t *testing.T) {
 	if p.Has(gofastcore.WarnInputRepaired) {
 		t.Errorf("repaired: %+v", p.Warnings)
 	}
-	ws := warnings(p, gofastcore.WarnLimitExceeded)
-	if len(ws) != 2 || !strings.Contains(ws[0].Message, "more than 64 parameters") || !strings.Contains(ws[0].Message, "(18 parameters not read)") ||
-		!strings.Contains(ws[1].Message, "above 999") || !strings.Contains(ws[1].Message, "(1 piece)") {
+	one(t, p, gofastcore.WarnLimitExceeded, "above 999", "(1 piece)")
+	if len(p.Warnings) != 1 {
 		t.Fatalf("warnings %+v", p.Warnings)
 	}
 }

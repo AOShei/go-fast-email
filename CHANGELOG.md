@@ -15,8 +15,9 @@ unchanged.
   `filename`, `format`, `delsp`, `access-type`, `url` and `site` (and
   their RFC 2231 pieces) are still read, to the end of the header; a
   boundary written after the 64th parameter is no longer reported as a
-  multipart body with no boundary. The other parameters past the 64th,
-  and RFC 2231 pieces numbered above 999, are counted in a
+  multipart body with no boundary. The other parameters past the 64th
+  are not read, as before, with no warning: this library does not use
+  them. RFC 2231 pieces numbered above 999 are counted in a
   `limit.exceeded`.
 - An encoded word left as written because its text is longer than 4,096
   bytes or its character set name longer than 100 bytes is reported with

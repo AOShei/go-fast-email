@@ -273,11 +273,6 @@ func (m *message) cuts(c rfc822.Cuts) {
 			return fmt.Sprintf("encoded words whose character set name is longer than %d bytes are left as written, not decoded (%s)", rfc822.MaxLabel, things(n, "word"))
 		})
 	}
-	if c.Params > 0 {
-		m.warnCount(gofastcore.WarnLimitExceeded, "params", c.Params, func(n int) string {
-			return fmt.Sprintf("a header has more than %d parameters; past the %dth only %s are read (%s not read)", rfc822.MaxParams, rfc822.MaxParams, strings.Join(rfc822.Used, ", "), things(n, "parameter"))
-		})
-	}
 	if c.Pieces > 0 {
 		m.warnCount(gofastcore.WarnLimitExceeded, "pieces", c.Pieces, func(n int) string {
 			return fmt.Sprintf("RFC 2231 parameter pieces numbered above %d are not read (%s)", rfc822.MaxPiece, things(n, "piece"))

@@ -70,7 +70,7 @@ func TestParams(t *testing.T) {
 }
 
 // TestParamsPastBound: past MaxParams parameters the ones the reader uses
-// are still read, the others are counted; RFC 2231 pieces past MaxPiece
+// are still read and the others are not; RFC 2231 pieces past MaxPiece
 // are counted.
 func TestParamsPastBound(t *testing.T) {
 	var b strings.Builder
@@ -86,8 +86,7 @@ func TestParamsPastBound(t *testing.T) {
 	if _, ok := p["x70"]; ok || p["x10"] != "10" {
 		t.Fatalf("x70 or x10: %q", p)
 	}
-	// 64 kept (x0 to x63), x64 to x99 counted.
-	if c.Params != 36 || c.Pieces != 1 {
+	if c != (Cuts{Pieces: 1}) {
 		t.Fatalf("cuts %+v", c)
 	}
 	// Under the bound nothing is counted.

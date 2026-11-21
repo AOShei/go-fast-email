@@ -36,9 +36,6 @@ type Cuts struct {
 	// LongLabels: encoded words whose character set name is longer than
 	// MaxLabel bytes, left as written.
 	LongLabels int
-	// Params: parameters past the MaxParams-th of a header that are not
-	// in Used, not read.
-	Params int
 	// Pieces: RFC 2231 pieces numbered above MaxPiece, not read.
 	Pieces int
 }
@@ -47,7 +44,6 @@ type Cuts struct {
 func (c *Cuts) Add(o Cuts) {
 	c.LongWords += o.LongWords
 	c.LongLabels += o.LongLabels
-	c.Params += o.Params
 	c.Pieces += o.Pieces
 }
 
@@ -63,7 +59,9 @@ func (c *Cuts) Add(o Cuts) {
 // writes) is decoded too.
 //
 // Past MaxParams parameters only those in Used are read, to the end of
-// the header; what the bounds leave out is counted in the Cuts returned.
+// the header: the others are not used, so nothing is lost. RFC 2231
+// pieces past MaxPiece and encoded words left as written are counted in
+// the Cuts returned.
 func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
 	var cuts Cuts
 	s := DecodeRaw(raw, report)
@@ -112,7 +110,6 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
 				base = name[:star]
 			}
 			if !used(base) {
-				cuts.Params++
 				continue
 			}
 		}

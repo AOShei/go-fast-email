@@ -327,10 +327,7 @@ Fixed bounds, each reported with `limit.exceeded` where it cuts:
 
 - An attachment's file name: 4,096 bytes. A longer one is cut in the
   middle; its extension is kept.
-- Parameters of a header: 64. Past them only `boundary`, `charset`,
-  `name`, `filename`, `format`, `delsp`, `access-type`, `url` and `site`
-  are read, to the end of the header. RFC 2231 pieces numbered above 999
-  are not read.
+- RFC 2231 pieces numbered above 999 are not read.
 - An encoded word: 4,096 bytes of encoded text and a character set name
   of 100 bytes. A longer one is left as written.
 - A mailbox `From ` line: 1,024 bytes in the headers note.
@@ -341,8 +338,11 @@ Fixed bounds, each reported with `limit.exceeded` where it cuts:
   are not read); and the bounds of a header section for the transport
   headers.
 
-A part name, which is a label (the subject is in full in the heading), is
-cut to 256 bytes without a warning.
+Without a warning, since nothing is lost: past 64 parameters in a header
+only `boundary`, `charset`, `name`, `filename`, `format`, `delsp`,
+`access-type`, `url` and `site` are read (to the end of the header), the
+others being parameters this library does not use; and a part name, which
+is a label (the subject is in full in the heading), is cut to 256 bytes.
 
 ## Mailboxes
 
