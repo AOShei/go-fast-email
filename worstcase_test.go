@@ -23,7 +23,7 @@ func TestWorstCase(t *testing.T) {
 	for name, data := range cases {
 		start := time.Now()
 		extract(t, data, nil)
-		if d := time.Since(start); d > 10*time.Second {
+		if d := time.Since(start); d > 10*raceSlowdown*time.Second {
 			t.Errorf("%s: %v", name, d)
 		}
 	}

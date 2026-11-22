@@ -71,17 +71,22 @@ one that reads, as children:
 | `text/html`, `application/xhtml+xml` | go-fast-html, format `html` |
 | `text/markdown` | go-fast-html, format `md` |
 | `text/plain` (alternatives and attachments) | go-fast-html, format `txt` |
+| `text/csv`, `text/tab-separated-values` | go-fast-html, format `csv` or `tsv`; the parameter `header=present` (RFC 4180) makes the first row a header row |
+| `application/x-ipynb+json` | go-fast-html, format `ipynb` (Jupyter notebooks) |
+| `application/epub+zip` | go-fast-html, format `epub` |
 | `application/rtf`, `text/rtf` (including the decompressed RTF body of a `.msg`) | go-fast-rtf |
 
 The `charset` parameter the message gives a text part (from its
 `Content-Type`, or `PR_INTERNET_CPID` in a `.msg`) goes to go-fast-html as
 `Extractor.Charset`, the transport-layer encoding: it wins over a
-`<meta>` declaration and loses only to a byte order mark.
+`<meta>` declaration and loses only to a byte order mark. It applies to
+HTML, Markdown, plain text, CSV and TSV; a notebook is JSON, in UTF-8,
+and an EPUB's chapters declare their own.
 
 An attachment declared `application/octet-stream`, or with no type (as
 Outlook keeps many), is read by the extension of its name: `.eml`,
-`.msg`, `.htm`, `.html`, `.xhtml`, `.txt`, `.md` and `.rtf` as the types
-above. A declared type is never second-guessed.
+`.msg`, `.htm`, `.html`, `.xhtml`, `.txt`, `.md`, `.rtf`, `.csv`, `.tsv`,
+`.tab`, `.ipynb` and `.epub` as the types above. A declared type is never second-guessed.
 
 Every other attachment is listed with its name and size
 (`child.unsupported`). Core's depth limit applies. Only `cmd/gofastemail`

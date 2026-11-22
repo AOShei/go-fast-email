@@ -14,8 +14,9 @@
 // be read.
 //
 // Embedded documents are extracted too: attached messages by this
-// library, HTML, XHTML, Markdown and plain text bodies and attachments by
-// go-fast-html, RTF ones by go-fast-rtf. Other attachments are listed.
+// library; HTML, XHTML, Markdown and plain text bodies and attachments,
+// and CSV, TSV, Jupyter notebook and EPUB attachments, by go-fast-html;
+// RTF ones by go-fast-rtf. Other attachments are listed.
 // Markdown and text include them, each after a line naming it, unless
 // -children=false. The library itself reads none of these formats: a
 // program passes its own Options.Child.
@@ -226,8 +227,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 }
 
 // dispatcher returns the command's Options.Child: attached messages are
-// read by this library, HTML, Markdown and plain text by go-fast-html, RTF
-// by go-fast-rtf; everything else is listed. Core's depth limit applies
+// read by this library; HTML, Markdown, plain text, CSV, TSV, Jupyter
+// notebooks and EPUB by go-fast-html; RTF by go-fast-rtf; everything else
+// is listed. Core's depth limit applies
 // through ExtractChild.
 func dispatcher(extractor *gofastemail.Extractor) gofastcore.ChildFunc {
 	return func(ctx context.Context, name, mimeType string, r io.ReaderAt, size int64, o *gofastcore.Options) (*gofastcore.Document, error) {
@@ -246,6 +248,16 @@ func dispatcher(extractor *gofastemail.Extractor) gofastcore.ChildFunc {
 			return (&gofasthtml.Extractor{Format: "md", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
 		case "text/plain":
 			return (&gofasthtml.Extractor{Format: "txt", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
+		case "text/csv", "text/tab-separated-values":
+			format := "csv"
+			if t == "text/tab-separated-values" {
+				format = "tsv"
+			}
+			return (&gofasthtml.Extractor{Format: format, Charset: charsetOf(mimeType), Header: headerPresent(mimeType)}).Extract(ctx, r, size, o)
+		case "application/x-ipynb+json":
+			return (&gofasthtml.Extractor{Format: "ipynb"}).Extract(ctx, r, size, o)
+		case "application/epub+zip":
+			return (&gofasthtml.Extractor{Format: "epub"}).Extract(ctx, r, size, o)
 		case "application/rtf", "text/rtf":
 			return (&gofastrtf.Extractor{}).Extract(ctx, r, size, o)
 		}
@@ -260,6 +272,8 @@ var byExtension = map[string]string{
 	".eml": "message/rfc822", ".msg": "application/vnd.ms-outlook",
 	".htm": "text/html", ".html": "text/html", ".xhtml": "application/xhtml+xml",
 	".txt": "text/plain", ".md": "text/markdown", ".rtf": "application/rtf",
+	".csv": "text/csv", ".tsv": "text/tab-separated-values", ".tab": "text/tab-separated-values",
+	".ipynb": "application/x-ipynb+json", ".epub": "application/epub+zip",
 }
 
 // remarks sums up what a document's warnings say that a person running
@@ -307,6 +321,15 @@ func charsetOf(v string) string {
 		return params["charset"]
 	}
 	return ""
+}
+
+// headerPresent reports whether a CSV or TSV media type declares that the
+// first row is a header row, with RFC 4180's parameter header=present.
+func headerPresent(v string) bool {
+	if _, params, err := mime.ParseMediaType(v); err == nil {
+		return strings.EqualFold(params["header"], "present")
+	}
+	return false
 }
 
 // moduleVersion is the version this command was built from.
