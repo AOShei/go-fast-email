@@ -13,6 +13,8 @@ The command reads more attachments. The library is unchanged.
   notebooks) and `application/epub+zip`. An attachment declared
   `application/octet-stream`, or with no type, is read by these types when
   its name ends in `.csv`, `.tsv`, `.tab`, `.ipynb` or `.epub`.
+- **Tests.** The worst-case test's time bound is four times longer under
+  the race detector, which made one case pass 10 s on a CI runner.
 
 ## v0.1.3 (2026-11-22)
 
