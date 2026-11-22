@@ -253,6 +253,9 @@ func TestDispatcherByExtension(t *testing.T) {
 		{"Fwd_ Note.EML", "application/octet-stream", "Subject: inner\n\nInner body.\n", "eml"},
 		{"page.htm", "", "<p>Page</p>", "html"},
 		{"notes.rtf", "application/octet-stream", "{\\rtf1 Notes}", "rtf"},
+		{"data.CSV", "application/octet-stream", "a,b\n1,2\n", "csv"},
+		{"data.tab", "", "a\tb\n", "tsv"},
+		{"nb.ipynb", "application/octet-stream", `{"nbformat":4,"cells":[{"cell_type":"markdown","source":"x"}]}`, "ipynb"},
 	} {
 		doc, err := child(context.Background(), c.name, c.mime, strings.NewReader(c.body), int64(len(c.body)), &gofastcore.Options{})
 		if err != nil {
@@ -279,5 +282,50 @@ func TestMediaType(t *testing.T) {
 		if got := mediaType(v); got != want {
 			t.Errorf("mediaType(%q) = %q, want %q", v, got, want)
 		}
+	}
+}
+
+// CSV, TSV, notebook and EPUB attachments go to go-fast-html by their
+// declared type; header=present gives the first row as a header row, and
+// the charset parameter is the encoding.
+func TestDispatcherNewTypes(t *testing.T) {
+	child := dispatcher(&gofastemail.Extractor{})
+	read := func(name, mime, body string) *gofastcore.Document {
+		t.Helper()
+		doc, err := child(context.Background(), name, mime, strings.NewReader(body), int64(len(body)), &gofastcore.Options{})
+		if err != nil {
+			t.Fatalf("%s: %v", mime, err)
+		}
+		if err := doc.Validate(); err != nil {
+			t.Fatalf("%s: Validate: %v", mime, err)
+		}
+		return doc
+	}
+	table := func(doc *gofastcore.Document) *gofastcore.Table {
+		t.Helper()
+		if len(doc.Parts) == 0 || len(doc.Parts[0].Blocks) == 0 || doc.Parts[0].Blocks[0].Table == nil {
+			t.Fatalf("no table: %+v", doc.Parts)
+		}
+		return doc.Parts[0].Blocks[0].Table
+	}
+	doc := read("x.bin", "text/csv; header=present; charset=windows-1252", "name,caf\xe9\n1,2\n")
+	if tb := table(doc); doc.Source.Format != "csv" || tb.HeaderRows != 1 || tb.Rows[0][1] != "caf\u00e9" {
+		t.Errorf("csv: %s %+v", doc.Source.Format, tb)
+	}
+	if tb := table(read("x", "text/csv", "a,b\n")); tb.HeaderRows != 0 {
+		t.Errorf("csv without header=present: %+v", tb)
+	}
+	if doc := read("x", "Text/Tab-Separated-Values; header=Present", "a\tb\n"); doc.Source.Format != "tsv" || table(doc).HeaderRows != 1 {
+		t.Errorf("tsv: %s", doc.Source.Format)
+	}
+	nb := `{"nbformat":4,"nbformat_minor":5,"cells":[{"cell_type":"code","source":"print(1)","outputs":[{"output_type":"stream","name":"stdout","text":"1"}]}]}`
+	if doc := read("x", "application/x-ipynb+json", nb); doc.Source.Format != "ipynb" || len(doc.Parts[0].Blocks) != 2 {
+		t.Errorf("ipynb: %s %+v", doc.Source.Format, doc.Parts)
+	}
+	if _, err := child(context.Background(), "x.epub", "application/epub+zip", strings.NewReader("not a zip"), 9, &gofastcore.Options{}); !errors.Is(err, gofastcore.ErrMalformed) {
+		t.Errorf("epub: %v (want go-fast-html's ErrMalformed for a broken archive)", err)
+	}
+	if got := headerPresent("text/csv; header=absent"); got {
+		t.Error("header=absent")
 	}
 }

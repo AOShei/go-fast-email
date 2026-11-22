@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+The command reads more attachments. The library is unchanged.
+
+- **go-fast-html v0.2.0** (was v0.1.1) and **go-fast-rtf v0.1.2** (was
+  v0.1.1). Their output-cuts and warning-cap changes reach the documents
+  of bodies and attachments they read.
+- **New attachment types** read by go-fast-html: `text/csv` and
+  `text/tab-separated-values` (a `header=present` parameter gives the
+  first row as a header row), `application/x-ipynb+json` (Jupyter
+  notebooks) and `application/epub+zip`. An attachment declared
+  `application/octet-stream`, or with no type, is read by these types when
+  its name ends in `.csv`, `.tsv`, `.tab`, `.ipynb` or `.epub`.
+
 ## v0.1.3 (2026-11-22)
 
 Every fixed bound on what goes into the output is reported with
