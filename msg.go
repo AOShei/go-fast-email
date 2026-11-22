@@ -335,6 +335,9 @@ func localeCodepage(lcid int32) string {
 // msgFile reads an Outlook message.
 func (r *reader) msgFile(src io.ReaderAt, size int64) (*gofastcore.Document, error) {
 	f, err := cfb.Open(src, size)
+	if errors.Is(err, cfb.ErrLimit) {
+		return nil, fmt.Errorf("gofastemail: %s: %w", clean.Line(err.Error()), gofastcore.ErrLimitExceeded)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("gofastemail: %s: %w", clean.Line(err.Error()), gofastcore.ErrMalformed)
 	}
@@ -570,7 +573,7 @@ func (r *reader) outlookBody(m *message, p *props) {
 	if hasHTML {
 		mime := "text/html"
 		if cp, ok := p.int32(pidInternetCPID); ok {
-			mime = withCharset(mime, map[string]string{"charset": codepageLabel(cp)})
+			mime = m.withCharset(mime, map[string]string{"charset": codepageLabel(cp)})
 		}
 		if p.f == nil {
 			html = r.budget(m, html) // from a TNEF stream; read from a compound file, it is counted
@@ -650,7 +653,7 @@ func (r *reader) outlookAttachment(m *message, ap *props, title string, embedded
 		r.child(m, file, "application/x-oleobject", nil, listed)
 	case attachByReference, attachByRefResolve, attachByRefOnly, attachByWebRef:
 		full := clean.Line(firstOf(ap.str(pidAttachLongPathname), ap.str(pidAttachPathname)))
-		path := quoteCut(full, 1024)
+		path := m.reference(full)
 		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, "attachment path", full, path,
 			"an attachment refers to a file outside the message: "+path, true,
 			func(count, list string) string {

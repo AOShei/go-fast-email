@@ -6,7 +6,7 @@ the shared go-fast document model,
 The library uses the standard library and go-fast-core only; its command
 also uses go-fast-html and go-fast-rtf.
 
-**Status: v0.1.2 (2026-11-22).** How it was built is in
+**Status: v0.1.3 (2026-11-22).** How it was built is in
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) (development history);
 the changes are in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -323,27 +323,50 @@ many items is reported once per message, with their number.
 A message is held in memory, with at most one decoded part beside it. A
 mailbox is scanned a line at a time and read one message at a time.
 
-Fixed bounds, each reported with `limit.exceeded` where it cuts:
+Fixed bounds on what goes into the output, each reported with
+`limit.exceeded` (severity error), once per bound and message with a
+count, where it cuts:
 
-- An attachment's file name: 4,096 bytes. A longer one is cut in the
-  middle; its extension is kept.
+- A part name, made from the subject: 4,096 bytes, cut on a character
+  boundary (the heading has the subject in full).
+- An attachment's file name, which is also the name of its embedded
+  document: 4,096 bytes. A longer one is cut in the middle; its extension
+  is kept.
 - RFC 2231 pieces numbered above 999, of the parameters this library
   reads, are not read.
 - An encoded word: 4,096 bytes of encoded text and a character set name
   of 100 bytes. A longer one is left as written.
 - A mailbox `From ` line: its first 1,024 bytes in the headers note.
 - An image description: 4,096 bytes.
+- The character set name passed on in the media type of an embedded
+  document: 63 bytes (the longest registered name is 45). A longer one is
+  not passed on.
+- A URL or path of content outside the message, named in an
+  `input.external_reference` warning: 4,096 bytes.
 - Outlook messages: 10,000 recipients and 10,000 attachments; 65,536
   entries in the property stream of a message, recipient or attachment
   (the fixed-length values past them, such as dates, numbers and flags,
   are not read); and the bounds of a header section for the transport
-  headers.
+  headers. A compound file with more than 262,144 directory entries is
+  refused with `ErrLimitExceeded`.
+- TNEF streams: 10,000 attachments, and 10,000 properties in a list.
 
-Without a warning, since nothing is lost: past 64 parameters in a header
-only `boundary`, `charset`, `name`, `filename`, `format`, `delsp`,
-`access-type`, `url` and `site` are read (to the end of the header), the
-others being parameters this library does not use; and a part name, which
-is a label (the subject is in full in the heading), is cut to 256 bytes.
+Bounds on data used only inside the library, which lose nothing that
+would be in the output and need no warning:
+
+- Parameters of a header: past the 64th only `boundary`, `charset`,
+  `name`, `filename`, `format`, `delsp`, `access-type`, `url` and `site`
+  are read (to the end of the header); the others are not used.
+- Quote depth: 64. Deeper quoting is a quote of depth 64 with the `>`
+  marks beyond it kept in its text.
+- Telling a message from other input: the first 64 KiB are looked at for
+  a header field.
+- Reading a mailbox: 64 KiB at a time; a longer line is read in pieces.
+- Warnings themselves (they describe the output, they are not content):
+  a warning for many values names the first 8 and counts up to 10,000
+  distinct values; a character set name, transfer encoding or access type
+  quoted in a warning is cut to 64 bytes, and the list of alternative
+  bodies to 512.
 
 ## Mailboxes
 

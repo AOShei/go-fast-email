@@ -49,9 +49,10 @@ const (
 	NoteEpilogue = gofastcore.NoteMIMEEpilogue
 )
 
-// maxNameBytes bounds a part name, which is a label: the subject is in
-// full in the heading.
-const maxNameBytes = 256
+// maxNameBytes bounds a part name, made from the subject (which is in
+// full in the heading). A subject of 90 Chinese characters is 270 bytes:
+// the bound is well above what mail holds.
+const maxNameBytes = 4096
 
 // shown lists the headers a mail program shows above a message, in the
 // order they are written in the headers block. The subject is the heading.
@@ -302,12 +303,20 @@ const maxFileNameBytes = 4096
 // maxImageText bounds the description of an image.
 const maxImageText = 4096
 
-// quoteCut returns s quoted, cut to at most n bytes with a note of the cut.
-func quoteCut(s string, n int) string {
-	if len(s) <= n {
+// maxReference bounds a URL or path of content outside the message, as a
+// warning names it.
+const maxReference = 4096
+
+// reference returns a URL or path of content outside the message quoted,
+// cut to maxReference bytes with a note of the cut, which is reported.
+func (m *message) reference(s string) string {
+	if len(s) <= maxReference {
 		return strconv.Quote(s)
 	}
-	return fmt.Sprintf("%q (cut at %d of its %d bytes)", clean.Cut(s, n), n, len(s))
+	m.warnCount(gofastcore.WarnLimitExceeded, "references", 1, func(n int) string {
+		return fmt.Sprintf("URLs and paths of content outside the message longer than %d bytes are cut to %d in the warning that names them (%s)", maxReference, maxReference, things(n, "reference"))
+	})
+	return fmt.Sprintf("%q (cut at %d of its %d bytes)", clean.Cut(s, maxReference), maxReference, len(s))
 }
 
 // fileName returns an attachment's file name as one line, cut in the
@@ -514,6 +523,9 @@ func (r *reader) headersNote(m *message, fields []headerField) {
 func (r *reader) head(m *message, subject string, lines []string) int {
 	if subject != "" {
 		m.part.Name = gofastcore.ExpandLigatures(clean.Cut(subject, maxNameBytes))
+		if len(subject) > maxNameBytes {
+			m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the part name, made from a subject of %d bytes, is cut to %d bytes (the heading has the subject in full)", len(subject), maxNameBytes))
+		}
 		heading := gofastcore.Block{Kind: gofastcore.KindHeading, Level: 1, Text: gofastcore.ExpandLigatures(subject)}
 		if r.take(m, gofastcore.BlockCost+len(heading.Text)) {
 			m.part.Blocks = append(m.part.Blocks, heading)
@@ -657,7 +669,7 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 			}
 		}
 		access := clean.Cut(clean.Line(params["access-type"]), 64)
-		quoted := quoteCut(clean.Line(where), 1024)
+		quoted := m.reference(clean.Line(where))
 		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, "external body", params["access-type"]+"\x00"+where,
 			fmt.Sprintf("%s (access type %q)", quoted, access),
 			fmt.Sprintf("a part whose content is outside the message (access type %q): %s", access, quoted), true,
@@ -744,27 +756,39 @@ func (r *reader) leaf(m *message, mediatype string, params map[string]string, na
 	case mediatype == "text/plain" && !attachment && !alt:
 		r.textBody(m, params, data)
 	case mediatype == "text/html" && !attachment:
-		r.child(m, name, withCharset(mediatype, params), data, false)
+		r.child(m, name, m.withCharset(mediatype, params), data, false)
 	case mediatype == "text/plain" && alt:
-		r.child(m, name, withCharset(mediatype, params), data, false)
+		r.child(m, name, m.withCharset(mediatype, params), data, false)
 	case isTNEF(mediatype) || strings.EqualFold(name, "winmail.dat"):
 		r.tnefChild(m, name, mediatype, data, true)
 	case strings.HasPrefix(mediatype, "message/"):
 		r.child(m, name, mediatype, data, true)
 	case strings.HasPrefix(mediatype, "text/"):
-		r.child(m, name, withCharset(mediatype, params), data, attachment || name != "")
+		r.child(m, name, m.withCharset(mediatype, params), data, attachment || name != "")
 	default:
 		r.child(m, name, mediatype, data, true)
 	}
 }
 
+// maxCharsetLabel bounds the character set name passed on in the media
+// type of an embedded document. The longest registered name is 45 bytes.
+const maxCharsetLabel = 63
+
 // withCharset returns the media type with its charset parameter, which the
-// embedded document's extractor needs to read text.
-func withCharset(mediatype string, params map[string]string) string {
-	if cs := charset.Normalize(params["charset"]); cs != "" && rfc822.Token(cs) && len(cs) < 64 {
-		return mediatype + "; charset=" + cs
+// embedded document's extractor needs to read text. A name longer than
+// maxCharsetLabel is not passed on, and that is reported.
+func (m *message) withCharset(mediatype string, params map[string]string) string {
+	cs := charset.Normalize(params["charset"])
+	if cs == "" || !rfc822.Token(cs) {
+		return mediatype
 	}
-	return mediatype
+	if len(cs) > maxCharsetLabel {
+		m.warnCount(gofastcore.WarnLimitExceeded, "charset labels", 1, func(n int) string {
+			return fmt.Sprintf("character set names longer than %d bytes are not passed on in the media type of an embedded document (%s)", maxCharsetLabel, things(n, "name"))
+		})
+		return mediatype
+	}
+	return mediatype + "; charset=" + cs
 }
 
 // textBody makes blocks of a text/plain body.

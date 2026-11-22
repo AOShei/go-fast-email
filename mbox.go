@@ -241,7 +241,7 @@ func countedEnd(src io.ReaderAt, size, start int64, maxHeader int) (int64, bool)
 	// The header is read a little at a time, growing until a blank line
 	// ends it within what was read: a mailbox of a million tiny messages
 	// must not cost a million times the largest header.
-	avail := min(int64(maxHeader), size-start, 64<<10)
+	avail := min(int64(maxHeader), size-start)
 	var head []byte
 	var h rfc822.Header
 	var bodyAt int

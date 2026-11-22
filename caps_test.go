@@ -27,6 +27,18 @@ func warnings(p *gofastcore.Part, code string) []gofastcore.Warning {
 	return out
 }
 
+// wordWarnings returns the part's warnings of encoded words left as
+// written (a long subject also has the part name cut).
+func wordWarnings(p *gofastcore.Part) []gofastcore.Warning {
+	var out []gofastcore.Warning
+	for _, w := range warnings(p, gofastcore.WarnLimitExceeded) {
+		if strings.HasPrefix(w.Message, "encoded words") {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
 // one checks that the part has exactly one warning with the code and
 // that its message holds every given text.
 func one(t *testing.T, p *gofastcore.Part, code string, holds ...string) gofastcore.Warning {
@@ -124,7 +136,7 @@ func TestLongEncodedWords(t *testing.T) {
 	msg := "From: a@example.com\nSubject: " + word + " " + word + "\nX-Label: " + label + "\n\nBody.\n"
 	doc := extract(t, msg, nil)
 	p := &doc.Parts[0]
-	ws := warnings(p, gofastcore.WarnLimitExceeded)
+	ws := wordWarnings(p)
 	if len(ws) != 2 || !strings.Contains(ws[0].Message, "within 4096 bytes") || !strings.Contains(ws[0].Message, "(2 words)") ||
 		!strings.Contains(ws[1].Message, "longer than 100 bytes") || !strings.Contains(ws[1].Message, "(1 word)") {
 		t.Fatalf("warnings %+v", p.Warnings)
@@ -347,7 +359,9 @@ func TestLongEnvelopeCarriageReturn(t *testing.T) {
 func TestLongRunOfWordStarts(t *testing.T) {
 	subject := strings.Repeat("=?a?b?a", 2000)
 	doc := extract(t, "From: a@example.com\nSubject: "+subject+"\n\nBody.\n", nil)
-	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(3 words)")
+	if ws := wordWarnings(&doc.Parts[0]); len(ws) != 1 || !strings.Contains(ws[0].Message, "(3 words)") {
+		t.Errorf("warnings %+v", ws)
+	}
 	if doc.Metadata.Title != subject {
 		t.Errorf("the subject is not kept as written")
 	}
@@ -424,7 +438,9 @@ func TestWordAfterCutWord(t *testing.T) {
 	if !strings.HasSuffix(doc.Metadata.Title, "aaaahéllo") {
 		t.Errorf("title ends %q", doc.Metadata.Title[len(doc.Metadata.Title)-20:])
 	}
-	one(t, &doc.Parts[0], gofastcore.WarnLimitExceeded, "(1 word)")
+	if ws := wordWarnings(&doc.Parts[0]); len(ws) != 1 || !strings.Contains(ws[0].Message, "(1 word)") {
+		t.Errorf("warnings %+v", ws)
+	}
 }
 
 // Pieces numbered above 999 are counted only for parameters that are

@@ -25,12 +25,14 @@ import (
 	"unicode/utf16"
 )
 
-// Errors. Both are wrapped with what was wrong.
+// Errors. Each is wrapped with what was wrong.
 var (
 	// ErrNotCompound: the input does not begin as a compound file does.
 	ErrNotCompound = errors.New("cfb: not a compound file")
 	// ErrDamaged: the file's structure contradicts itself or its size.
 	ErrDamaged = errors.New("cfb: damaged compound file")
+	// ErrLimit: the file has more than this reader reads.
+	ErrLimit = errors.New("cfb: compound file over the limit")
 	// ErrNotFound: no stream or storage of that name.
 	ErrNotFound = errors.New("cfb: not found")
 )
@@ -52,9 +54,10 @@ const (
 	kindRoot    = 5
 )
 
-// maxEntries bounds the directory entries read. A file that has more is
-// not one this reader is for.
-const maxEntries = 1 << 16
+// maxEntries bounds the directory entries read: 262,144, well above an
+// Outlook message with 10,000 attachments and 10,000 recipients (some ten
+// entries each). A file that has more is refused with ErrLimit.
+const maxEntries = 1 << 18
 
 // entry is one directory entry.
 type entry struct {
@@ -175,7 +178,7 @@ func Open(r io.ReaderAt, size int64) (*File, error) {
 		}
 		for at := int64(0); at+128 <= sectorSize; at += 128 {
 			if len(f.entries) >= maxEntries {
-				return nil, fmt.Errorf("%w: more than %d directory entries", ErrDamaged, maxEntries)
+				return nil, fmt.Errorf("%w: more than %d directory entries", ErrLimit, maxEntries)
 			}
 			raw := buf[at : at+128]
 			e := entry{kind: raw[66], left: le.Uint32(raw[68:]), right: le.Uint32(raw[72:]), child: le.Uint32(raw[76:]),
