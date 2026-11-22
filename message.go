@@ -304,18 +304,16 @@ const maxFileNameBytes = 4096
 const maxImageText = 4096
 
 // maxReference bounds a URL or path of content outside the message, as a
-// warning names it.
+// warning names it. The text of a warning is not output: the cut is noted
+// in the warning itself, not reported as a limit.
 const maxReference = 4096
 
 // reference returns a URL or path of content outside the message quoted,
-// cut to maxReference bytes with a note of the cut, which is reported.
+// cut to maxReference bytes with a note of the cut.
 func (m *message) reference(s string) string {
 	if len(s) <= maxReference {
 		return strconv.Quote(s)
 	}
-	m.warnCount(gofastcore.WarnLimitExceeded, "references", 1, func(n int) string {
-		return fmt.Sprintf("URLs and paths of content outside the message longer than %d bytes are cut to %d in the warning that names them (%s)", maxReference, maxReference, things(n, "reference"))
-	})
 	return fmt.Sprintf("%q (cut at %d of its %d bytes)", clean.Cut(s, maxReference), maxReference, len(s))
 }
 

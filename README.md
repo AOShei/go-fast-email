@@ -341,8 +341,6 @@ count, where it cuts:
 - The character set name passed on in the media type of an embedded
   document: 63 bytes (the longest registered name is 45). A longer one is
   not passed on.
-- A URL or path of content outside the message, named in an
-  `input.external_reference` warning: 4,096 bytes.
 - Outlook messages: 10,000 recipients and 10,000 attachments; 65,536
   entries in the property stream of a message, recipient or attachment
   (the fixed-length values past them, such as dates, numbers and flags,
@@ -365,8 +363,9 @@ would be in the output and need no warning:
 - Warnings themselves (they describe the output, they are not content):
   a warning for many values names the first 8 and counts up to 10,000
   distinct values; a character set name, transfer encoding or access type
-  quoted in a warning is cut to 64 bytes, and the list of alternative
-  bodies to 512.
+  quoted in a warning is cut to 64 bytes, the list of alternative
+  bodies to 512, and a URL or path of content outside the message to
+  4,096 (with a note of the cut in the warning).
 
 ## Mailboxes
 

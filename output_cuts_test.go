@@ -33,7 +33,8 @@ func TestPartNameFromSubject(t *testing.T) {
 }
 
 // A URL of content outside the message is named in full up to 4096
-// bytes; past that it is cut, with limit.exceeded.
+// bytes; past that it is cut with a note in the warning, which is not
+// output, so no limit.exceeded.
 func TestLongReference(t *testing.T) {
 	for _, n := range []int{2000, 5000} {
 		url := "http://example.com/" + strings.Repeat("u", n)
@@ -48,10 +49,9 @@ func TestLongReference(t *testing.T) {
 			}
 			continue
 		}
-		if !strings.Contains(ref.Message, "(cut at 4096 of its") {
-			t.Errorf("%d: %q", n, ref.Message[len(ref.Message)-60:])
+		if !strings.Contains(ref.Message, "(cut at 4096 of its") || p.Has(gofastcore.WarnLimitExceeded) {
+			t.Errorf("%d: %q, %+v", n, ref.Message[len(ref.Message)-60:], p.Warnings)
 		}
-		one(t, p, gofastcore.WarnLimitExceeded, "longer than 4096 bytes", "(1 reference)")
 	}
 }
 

@@ -13,8 +13,8 @@ input that reaches no bound is unchanged; no file of the corpus changes.
   `limit.exceeded`.
 - A URL or path of content outside the message is named in its
   `input.external_reference` warning up to 4,096 bytes, not 1,024; past
-  that it is cut, with a `limit.exceeded` besides the note in the
-  warning.
+  that it is cut with a note in the warning. The text of a warning is not
+  output, so the cut is not a `limit.exceeded`.
 - A character set name longer than 63 bytes, which is not passed on in
   the media type of an embedded document, is reported with
   `limit.exceeded`.
