@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.1.3 (2026-11-22)
+
+Every fixed bound on what goes into the output is reported with
+`limit.exceeded` where it cuts, or raised where ordinary mail reaches it
+(the series rule "Bounded input" of go-fast-core's README). Output for
+input that reaches no bound is unchanged; no file of the corpus changes.
+
+- A part name, made from the subject, is kept to 4,096 bytes, not 256: a
+  subject of 90 Chinese characters is 270 bytes and was cut without a
+  word. A longer subject gives a name cut on a character boundary and a
+  `limit.exceeded`.
+- A URL or path of content outside the message is named in its
+  `input.external_reference` warning up to 4,096 bytes, not 1,024; past
+  that it is cut with a note in the warning. The text of a warning is not
+  output, so the cut is not a `limit.exceeded`.
+- A character set name longer than 63 bytes, which is not passed on in
+  the media type of an embedded document, is reported with
+  `limit.exceeded`.
+- An Outlook message's compound file is read with up to 262,144
+  directory entries, not 65,536 (a message with 10,000 attachments has
+  more than 65,536); a file with more is refused with `ErrLimitExceeded`,
+  not as damaged.
+- In a mailbox, the `Content-Length` of a message (mboxcl2) is looked for
+  in a header up to `MaxHeaderBytes`, not 64 KiB, so that a message with
+  a longer header is not split at a `From ` line in its body.
+- The README lists every fixed bound: those reported, and those on data
+  used only inside the library.
+
 ## v0.1.2 (2026-11-22)
 
 Fixed bounds that cut or left out content without saying so now say so,
