@@ -1,14 +1,16 @@
 # Changelog
 
-## v0.1.2 (not yet tagged)
+## v0.1.2 (2026-11-22)
 
-- Built on go-fast-core v0.1.1: a part or document keeps at most 1,000
-  warnings, and the rest are counted in one `warnings.omitted` warning.
 Fixed bounds that cut or left out content without saying so now say so,
 and warnings that could be given without bound are given once per
 message. Outputs for input that reaches none of these bounds are
 unchanged.
 
+- Built on go-fast-core v0.1.1: a part or document keeps at most 1,000
+  warnings, and the rest are counted in one `warnings.omitted` warning.
+- The command reads HTML and RTF with go-fast-html v0.1.1 and go-fast-rtf
+  v0.1.1, which report their own fixed bounds the same way.
 - An attachment's file name (in a message, an Outlook message or a TNEF
   stream) is kept to 4,096 bytes, not 256; a longer one is cut in the
   middle with its extension kept, and the part has one
