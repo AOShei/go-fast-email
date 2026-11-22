@@ -146,7 +146,8 @@ func (r *reader) tnefFile(src io.ReaderAt, size int64) (*gofastcore.Document, er
 // tnefProps makes the property reader of an Outlook message from the
 // properties of a TNEF stream.
 func tnefProps(m *message, list []tnef.Prop, limit int64) *props {
-	p := &props{values: map[uint32][]byte{}, fixed: map[uint32]uint64{}, limit: limit, m: m}
+	m.props++
+	p := &props{values: map[uint32][]byte{}, fixed: map[uint32]uint64{}, limit: limit, m: m, serial: m.props}
 	for _, pr := range list {
 		tag := uint32(pr.ID)<<16 | uint32(pr.Type)
 		switch pr.Type {

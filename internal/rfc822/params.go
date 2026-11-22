@@ -8,8 +8,45 @@ import (
 	"github.com/AOShei/go-fast-email/internal/charset"
 )
 
-// maxParams bounds the parameters read from one header.
-const maxParams = 64
+// MaxParams bounds the parameters read from one header. Past it only the
+// parameters this library reads (Used) are kept.
+const MaxParams = 64
+
+// MaxPiece is the highest number of an RFC 2231 piece ("name*999") read.
+const MaxPiece = 999
+
+// Used lists the parameters the reader of a message uses: past MaxParams
+// these are still read, the others are not.
+var Used = []string{"boundary", "charset", "name", "filename", "format", "delsp", "access-type", "url", "site"}
+
+func used(name string) bool {
+	for _, u := range Used {
+		if u == name {
+			return true
+		}
+	}
+	return false
+}
+
+// Cuts counts what a bound of this package left unread or undecoded.
+type Cuts struct {
+	// LongWords: encoded words that do not end within MaxWord bytes, left
+	// as written.
+	LongWords int
+	// LongLabels: encoded words whose character set name is longer than
+	// MaxLabel bytes, left as written.
+	LongLabels int
+	// Pieces: RFC 2231 pieces numbered above MaxPiece, of a parameter
+	// in Used, not read.
+	Pieces int
+}
+
+// Add adds the counts of o to c.
+func (c *Cuts) Add(o Cuts) {
+	c.LongWords += o.LongWords
+	c.LongLabels += o.LongLabels
+	c.Pieces += o.Pieces
+}
 
 // Params reads a header that has the form of Content-Type or
 // Content-Disposition: a value, then parameters "; name=value". It returns
@@ -21,7 +58,13 @@ const maxParams = 64
 // joined, and the extended form "name*=charset'lang'%XX" is decoded. An
 // encoded word inside a quoted value (which RFC 2047 forbids and Outlook
 // writes) is decoded too.
-func Params(raw []byte, report CharsetFunc) (string, map[string]string) {
+//
+// Past MaxParams parameters only those in Used are read, to the end of
+// the header: the others are not used, so nothing is lost. RFC 2231
+// pieces past MaxPiece and encoded words left as written are counted in
+// the Cuts returned.
+func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
+	var cuts Cuts
 	s := DecodeRaw(raw, report)
 	value, rest, _ := strings.Cut(s, ";")
 	value = strings.ToLower(strings.TrimSpace(value))
@@ -38,8 +81,13 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string) {
 	}
 	pieces := map[string][]piece{}
 	plain := map[string]string{}
+	// The names in the order the header gives them: the plain parameters
+	// are decoded in that order, then the pieced ones (RFC 2231) in theirs,
+	// so that what report is told comes in an order that does not change
+	// from run to run.
+	var plainOrder, pieceOrder []string
 	count := 0
-	for rest != "" && count < maxParams {
+	for rest != "" {
 		rest = strings.TrimLeft(rest, " \t;")
 		eq := strings.IndexByte(rest, '=')
 		if eq < 0 {
@@ -61,30 +109,50 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string) {
 		if name == "" || strings.ContainsAny(name, " \t\"") {
 			continue
 		}
+		star := strings.IndexByte(name, '*')
+		if count > MaxParams {
+			base := name
+			if star >= 0 {
+				base = name[:star]
+			}
+			if !used(base) {
+				continue
+			}
+		}
 		// RFC 2231: name*, name*0, name*0*, name*1, ...
-		if star := strings.IndexByte(name, '*'); star >= 0 {
+		if star >= 0 {
 			base, suffix := name[:star], name[star+1:]
 			ext := strings.HasSuffix(suffix, "*") || suffix == ""
 			suffix = strings.TrimSuffix(suffix, "*")
 			n := 0
 			if suffix != "" {
 				var err error
-				if n, err = strconv.Atoi(suffix); err != nil || n < 0 || n > 999 {
+				if n, err = strconv.Atoi(suffix); err != nil || n < 0 || n > MaxPiece {
+					if digits(suffix) && used(base) {
+						cuts.Pieces++ // a number past the bound, not a malformed one, of a parameter read
+					}
 					continue
 				}
+			}
+			if _, seen := pieces[base]; !seen {
+				pieceOrder = append(pieceOrder, base)
 			}
 			pieces[base] = append(pieces[base], piece{n, ext, v})
 			continue
 		}
 		if _, dup := plain[name]; !dup {
 			plain[name] = v
+			plainOrder = append(plainOrder, name)
 		}
 	}
 	params := map[string]string{}
-	for name, v := range plain {
-		params[name] = decodeWordsIn(v, report)
+	for _, name := range plainOrder {
+		var c Cuts
+		params[name], c = decodeWordsIn(plain[name], report)
+		cuts.Add(c)
 	}
-	for name, ps := range pieces {
+	for _, name := range pieceOrder {
+		ps := pieces[name]
 		sort.SliceStable(ps, func(i, j int) bool { return ps[i].n < ps[j].n })
 		label := ""
 		var raw []byte
@@ -115,7 +183,17 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string) {
 		// as it is the one written for programs that read it.
 		params[name] = text
 	}
-	return value, params
+	return value, params, cuts
+}
+
+// digits reports whether s is made only of ASCII digits.
+func digits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // Token reports whether s is made only of printable ASCII other than
@@ -139,11 +217,11 @@ func DecodeRaw(raw []byte, report CharsetFunc) string {
 	return s
 }
 
-func decodeWordsIn(v string, report CharsetFunc) string {
+func decodeWordsIn(v string, report CharsetFunc) (string, Cuts) {
 	if strings.Contains(v, "=?") {
 		return DecodeText([]byte(v), report)
 	}
-	return v
+	return v, Cuts{}
 }
 
 // quoted reads the quoted string at the start of s and returns its content

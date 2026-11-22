@@ -18,13 +18,17 @@ import (
 // Limits.MaxParts is zero.
 const DefaultMaxParts = 1_000_000
 
-// maxEnvelope bounds the "From " line kept for a message.
+// maxEnvelope bounds the bytes of the "From " line kept for a message
+// (as text, bytes not valid UTF-8 become U+FFFD).
 const maxEnvelope = 1024
 
 // span is one message of a mailbox: the bytes after its "From " line.
 type span struct {
 	start, end int64
 	envelope   string
+	// long: the bytes of the "From " line, where it is cut to its first
+	// maxEnvelope bytes in the envelope; 0 otherwise.
+	long int
 	// counted: the end was found from a Content-Length header (mboxcl2),
 	// so lines in the body that begin ">From " are as the sender wrote
 	// them and are not unquoted.
@@ -97,8 +101,11 @@ func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Par
 	// mailbox of a great many empty messages is bounded too.
 	if !r.take(m, gofastcore.BlockCost) {
 		m.part.Kind, m.part.Number = gofastcore.PartMessage, number
-		m.part.Finish()
+		m.finish()
 		return m.part
+	}
+	if s.long > 0 {
+		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the mailbox \"From \" line of this message (%d bytes) is cut to its first %d bytes in the headers note", s.long, maxEnvelope))
 	}
 	r.message(m, raw, number, s.envelope)
 	return m.part
@@ -147,19 +154,28 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 			return err
 		}
 		if atLineStart && prevBlank && bytes.HasPrefix(chunk, []byte("From ")) {
-			env := clean.Cut(clean.Line(strings.ToValidUTF8(string(bytes.TrimRight(chunk[5:], "\r\n")), "�")), maxEnvelope)
+			// The line is cut in its bytes, before it is made text.
+			line := lineBytes(chunk[5:], whole)
+			env := clean.Line(strings.ToValidUTF8(clean.Cut(string(line), maxEnvelope), "�"))
+			var n lineLength
+			n.add(chunk[5:], whole)
 			for !whole { // the rest of a very long line
 				chunk, err = br.ReadSlice('\n')
 				off += int64(len(chunk))
 				whole = !errors.Is(err, bufio.ErrBufferFull)
+				n.add(chunk, whole)
 			}
+			long := n.n
 			if cur != nil {
 				cur.end = lineStart
 				if !emit(*cur) {
 					return nil
 				}
 			}
-			cur = &span{start: off, envelope: env}
+			if long <= maxEnvelope {
+				long = 0
+			}
+			cur = &span{start: off, envelope: env, long: long}
 			if end, ok := countedEnd(src, size, off, maxHeader); ok {
 				cur.end, cur.counted = end, true
 				if !emit(*cur) {
@@ -183,6 +199,38 @@ func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) 
 		emit(*cur)
 	}
 	return nil
+}
+
+// lineBytes returns the bytes of a line read up to a buffer's size: its
+// line break removed where the line ends there (whole), and as they are
+// where it goes on.
+func lineBytes(chunk []byte, whole bool) []byte {
+	if whole {
+		return bytes.TrimRight(chunk, "\r\n")
+	}
+	return chunk
+}
+
+// lineLength counts the bytes of a line read a buffer's size at a time,
+// without its line break: "\r" bytes that end a buffer are held back
+// until the next shows whether they are the line's own or begin its
+// break.
+type lineLength struct{ n, held int }
+
+func (l *lineLength) add(chunk []byte, whole bool) {
+	cut := "\r"
+	if whole {
+		cut = "\r\n"
+	}
+	t := bytes.TrimRight(chunk, cut)
+	if len(t) > 0 {
+		l.n += l.held + len(t)
+		l.held = 0
+	}
+	l.held += len(chunk) - len(t)
+	if whole {
+		l.held = 0
+	}
 }
 
 // countedEnd returns the end of the message whose header begins at start,

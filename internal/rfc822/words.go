@@ -17,8 +17,11 @@ type CharsetFunc func(label string, res charset.Result)
 // encoded words of RFC 2047 decoded, and the whitespace between two
 // adjacent encoded words removed as that RFC has it. Bytes outside ASCII
 // outside an encoded word are taken as UTF-8 (RFC 6532); where they are
-// not valid UTF-8 they become U+FFFD and report is told.
-func DecodeText(raw []byte, report CharsetFunc) string {
+// not valid UTF-8 they become U+FFFD and report is told. Encoded words
+// that a bound of this package keeps from being decoded are left as
+// written and counted in the Cuts returned.
+func DecodeText(raw []byte, report CharsetFunc) (string, Cuts) {
+	var cuts Cuts
 	var s string
 	if utf8.Valid(raw) {
 		s = string(raw)
@@ -30,12 +33,18 @@ func DecodeText(raw []byte, report CharsetFunc) string {
 		}
 	}
 	if !strings.Contains(s, "=?") {
-		return s
+		return s, cuts
 	}
 	var sb strings.Builder
 	sb.Grow(len(s))
 	pending := "" // whitespace after an encoded word, written only if text follows
 	afterWord := false
+	// What is known of the text, by offset in the whole of it: off is
+	// where s begins; [cleanFrom, cleanTo) holds no whitespace and no "?="
+	// that begins before cleanTo-1, as found while looking for the end of
+	// a word, so that the words that begin within it do not search it
+	// again; cutTo is where the bound of the last cut word counted ends.
+	off, cleanFrom, cleanTo, cutTo := 0, 0, 0, 0
 	for len(s) > 0 {
 		i := strings.Index(s, "=?")
 		if i < 0 {
@@ -43,12 +52,38 @@ func DecodeText(raw []byte, report CharsetFunc) string {
 			sb.WriteString(s)
 			break
 		}
-		text, rest, ok := encodedWord(s[i:], report)
-		if !ok {
+		at := off + i
+		w := encodedWord(s[i:], report, cleanFrom-at, cleanTo-at)
+		if w.clean > 0 {
+			from, to := at+w.textAt, at+w.clean
+			if from >= cleanFrom && from <= cleanTo {
+				cleanTo = max(cleanTo, to)
+			} else {
+				cleanFrom, cleanTo = from, to
+			}
+		}
+		switch w.cut {
+		case cutWord:
+			// A word that begins within the bound of one counted is
+			// part of the same run: a long run with "=?" all through it
+			// is one cut word per bound, not one per "=?".
+			if at >= cutTo {
+				cuts.LongWords++
+				cutTo = at + w.clean
+			}
+		case cutLabel:
+			cuts.LongLabels++
+		}
+		if !w.ok {
 			sb.WriteString(pending)
 			pending = ""
-			sb.WriteString(s[:i+2])
-			s = s[i+2:]
+			skip := i + 2
+			if w.cut == cutNone && w.rest != "" {
+				// Not a word, and no word begins before rest.
+				skip = len(s) - len(w.rest)
+			}
+			sb.WriteString(s[:skip])
+			s, off = s[skip:], off+skip
 			afterWord = false
 			continue
 		}
@@ -60,8 +95,9 @@ func DecodeText(raw []byte, report CharsetFunc) string {
 		}
 		pending = ""
 		sb.WriteString(gap)
-		sb.WriteString(text)
-		s = rest
+		sb.WriteString(w.text)
+		off += len(s) - len(w.rest)
+		s = w.rest
 		afterWord = true
 		// Whitespace that follows is held back until it is known whether
 		// another encoded word follows it.
@@ -69,47 +105,107 @@ func DecodeText(raw []byte, report CharsetFunc) string {
 		for j < len(s) && (s[j] == ' ' || s[j] == '\t' || s[j] == '\r' || s[j] == '\n') {
 			j++
 		}
-		pending, s = s[:j], s[j:]
+		pending, s, off = s[:j], s[j:], off+j
 	}
-	return sb.String()
+	return sb.String(), cuts
+}
+
+// The bounds on an encoded word.
+const (
+	// MaxWord bounds the encoded text of an encoded word. The longest
+	// word RFC 2047 allows is 75 characters; longer ones are written by
+	// some programs, so the bound here is looser.
+	MaxWord = 4096
+	// MaxLabel bounds the character set name of an encoded word.
+	MaxLabel = 100
+)
+
+// What kept an encoded word from being decoded, where it was a bound.
+const (
+	cutNone = iota
+	cutWord
+	cutLabel
+)
+
+// word is what encodedWord finds at a "=?".
+type word struct {
+	text string // the decoded text, if ok
+	// rest: what follows the word, if ok; where it is not a word and no
+	// word can begin before some later point, the text from that point;
+	// otherwise empty.
+	rest string
+	ok   bool
+	cut  int // what bound kept it from being decoded, if one did
+	// textAt is the offset of the encoded text; clean, if not 0, the
+	// offset up to which the text from textAt holds no whitespace and no
+	// "?=" that begins before clean-1.
+	textAt, clean int
 }
 
 // encodedWord decodes the encoded word "=?charset?enc?text?=" at the start
-// of s, and returns its text and what follows it.
-func encodedWord(s string, report CharsetFunc) (string, string, bool) {
-	// The longest word RFC 2047 allows is 75 characters; longer ones are
-	// written by some programs, so the bound here is looser.
-	const maxWord = 4096
+// of s. Where it is not decoded because of MaxWord or MaxLabel, and not
+// because of its form, cut says which. [from, to), offsets in s, is known
+// to hold no whitespace and no "?=" that begins before to-1; the search
+// for the end does not look there again.
+func encodedWord(s string, report CharsetFunc, from, to int) word {
 	body := s[2:]
 	q1 := strings.IndexByte(body, '?')
-	if q1 <= 0 || q1 > 100 || len(body) < q1+3 || body[q1+2] != '?' {
-		return "", "", false
+	if q1 <= 0 || len(body) < q1+3 || body[q1+2] != '?' {
+		return word{}
 	}
 	label, enc := body[:q1], body[q1+1]
+	if enc != 'B' && enc != 'b' && enc != 'Q' && enc != 'q' || strings.ContainsAny(label, " \t\"") {
+		return word{}
+	}
 	text := body[q1+3:]
+	textAt := 2 + q1 + 3
 	// The end is looked for no further than a word may be long, so that
 	// words that never end do not each search the rest of the text.
-	end := strings.Index(text[:min(len(text), maxWord+2)], "?=")
-	if end < 0 || end > maxWord || strings.ContainsAny(text[:end], " \t\r\n") {
-		return "", "", false
+	window := text[:min(len(text), MaxWord+2)]
+	k := 0 // where the search begins: what is before it is known
+	if from <= textAt && to-1 > textAt {
+		k = min(to-1-textAt, len(window))
+	}
+	end := strings.Index(window[k:], "?=")
+	if end < 0 {
+		end = len(window)
+	} else {
+		end += k
+	}
+	if strings.ContainsAny(text[k:end], " \t\r\n") {
+		// Whitespace before any "?=": not a word. Nor does a word begin
+		// before a space or tab there, since no part of a word holds one
+		// (a line break may be in a label) and no word could end before
+		// it. Unless one begins within "=?label?E?", the caller goes on
+		// from the space or tab, not from 2 bytes on.
+		w := strings.IndexAny(text[k:end], " \t")
+		if w < 0 || strings.Contains(s[2:textAt], "=?") {
+			return word{}
+		}
+		return word{rest: text[k+w:]}
+	}
+	if end == len(window) {
+		// No end within the bound, and nothing a word may not hold.
+		clean := textAt + len(window)
+		if len(window) == MaxWord+2 {
+			return word{cut: cutWord, textAt: textAt, clean: clean} // it runs on past the bound
+		}
+		return word{textAt: textAt, clean: clean} // it never ends
+	}
+	if q1 > MaxLabel {
+		return word{cut: cutLabel}
 	}
 	var raw []byte
-	switch enc {
-	case 'B', 'b':
+	if enc == 'B' || enc == 'b' {
 		raw = Base64([]byte(text[:end]))
-	case 'Q', 'q':
+	} else {
 		raw = qword(text[:end])
-	default:
-		return "", "", false
-	}
-	if strings.ContainsAny(label, " \t\"") {
-		return "", "", false
 	}
 	out, res := charset.Decode(label, raw)
 	if (!res.Known || res.Replaced) && report != nil {
 		report(charset.Normalize(label), res)
 	}
-	return out, text[end+2:], true
+	return word{text: out, rest: text[end+2:], ok: true}
 }
 
 // qword decodes the Q encoding of an encoded word: "_" is a space and

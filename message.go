@@ -49,7 +49,8 @@ const (
 	NoteEpilogue = gofastcore.NoteMIMEEpilogue
 )
 
-// maxNameBytes bounds a part name and an attachment name.
+// maxNameBytes bounds a part name, which is a label: the subject is in
+// full in the heading.
 const maxNameBytes = 256
 
 // shown lists the headers a mail program shows above a message, in the
@@ -78,7 +79,11 @@ type message struct {
 	children []int
 	attached []string
 	warned   map[string]bool
-	inline   bool // a single message: its headers go to the metadata
+	groups   map[string]*group
+	head     map[string]rfc822.Cuts // see headCuts
+	props    int                    // property readers made, in an Outlook message or TNEF stream
+	order    []*group               // groups in the order of their warnings
+	inline   bool                   // a single message: its headers go to the metadata
 }
 
 func (m *message) warn(sev gofastcore.Severity, code, msg string) {
@@ -93,6 +98,143 @@ func (m *message) warn(sev gofastcore.Severity, code, msg string) {
 	m.part.Warn(sev, code, msg)
 }
 
+// The bounds of a warning that stands for many values.
+const (
+	maxListed = 8      // values named in its message
+	maxSeen   = 10_000 // distinct values counted
+)
+
+// group is one warning of a part that stands for many occurrences: the
+// distinct values of one kind (character sets not decoded, transfer
+// encodings not known, ...) or the items one bound cut. It is written
+// when the first occurs, in the order of the part's warnings, and its
+// message is set to cover the others when the part is finished.
+type group struct {
+	at    int // index of its warning in part.Warnings, if it was kept
+	code  string
+	first string // the message it was written with
+	n     int    // distinct values, or items counted
+	over  bool
+	vals  []string // the first maxListed values, as they are named
+	seen  map[string]struct{}
+	raw   bool // the values are written as they are, joined by "; "
+	many  func(count, list string) string
+	count func(n int) string
+}
+
+// list names the values: the first maxListed, then how many more.
+func (g *group) list() string {
+	var b strings.Builder
+	for i, v := range g.vals {
+		switch {
+		case i > 0 && g.raw:
+			b.WriteString("; ")
+		case i > 0:
+			b.WriteString(", ")
+		}
+		if g.raw {
+			b.WriteString(v)
+		} else {
+			b.WriteString(strconv.Quote(v))
+		}
+	}
+	switch {
+	case g.over:
+		b.WriteString(" and others")
+	case g.n > len(g.vals):
+		fmt.Fprintf(&b, " and %d more", g.n-len(g.vals))
+	}
+	return b.String()
+}
+
+func (m *message) group(key string) (*group, bool) {
+	g, ok := m.groups[key]
+	if !ok {
+		if m.groups == nil {
+			m.groups = map[string]*group{}
+		}
+		g = &group{at: len(m.part.Warnings)}
+		m.groups[key] = g
+		m.order = append(m.order, g)
+	}
+	return g, ok
+}
+
+// warnEach warns once per part of a kind of warning that can be given
+// for many distinct values (a character set, a transfer encoding, a
+// media type). The first value gives the warning, with the message one;
+// if more distinct values follow, its message is many(count, list) once
+// the part is finished, the list naming each value as named gives it.
+// raw: the names are written as they are, not quoted.
+func (m *message) warnEach(sev gofastcore.Severity, code, key, value, named, one string, raw bool, many func(count, list string) string) {
+	g, ok := m.group(code + "\x00" + key)
+	if !ok {
+		g.seen, g.raw, g.many = map[string]struct{}{value: {}}, raw, many
+		g.n, g.vals = 1, []string{named}
+		g.code, g.first = code, one
+		m.part.Warn(sev, code, one)
+		return
+	}
+	if _, dup := g.seen[value]; dup || g.over {
+		return
+	}
+	if len(g.seen) >= maxSeen {
+		g.over = true
+		return
+	}
+	g.seen[value] = struct{}{}
+	g.n++
+	if len(g.vals) < maxListed {
+		g.vals = append(g.vals, named)
+	}
+}
+
+// warnCount warns once per part that a bound cut n items; the message is
+// text(total) once the part is finished.
+func (m *message) warnCount(code, key string, n int, text func(total int) string) {
+	g, ok := m.group(code + "\x00" + key)
+	g.n += n
+	if !ok {
+		g.count, g.code, g.first = text, code, text(g.n)
+		m.part.Warn(gofastcore.SeverityError, code, g.first)
+	}
+}
+
+// finish sets the messages of the grouped warnings and finishes the part.
+// A grouped warning is rewritten only where it is still at its place: a
+// part may keep only so many warnings, and then it was never written.
+func (m *message) finish() {
+	ws := m.part.Warnings
+	for _, g := range m.order {
+		if g.at >= len(ws) || ws[g.at].Code != g.code || ws[g.at].Message != g.first {
+			continue
+		}
+		switch {
+		case g.count != nil:
+			ws[g.at].Message = g.count(g.n)
+		case g.n > 1 || g.over:
+			count := strconv.Itoa(g.n)
+			if g.over {
+				count = fmt.Sprintf("more than %d", maxSeen)
+			}
+			ws[g.at].Message = g.many(count, g.list())
+		}
+	}
+	m.order, m.groups = nil, nil
+	m.part.Finish()
+}
+
+// things writes a count of a noun: "1 word", "2 words", "3 entries".
+func things(n int, noun string) string {
+	switch {
+	case n == 1:
+		return "1 " + noun
+	case strings.HasSuffix(noun, "y"):
+		return strconv.Itoa(n) + " " + noun[:len(noun)-1] + "ies"
+	}
+	return strconv.Itoa(n) + " " + noun + "s"
+}
+
 func (m *message) charsetReport() rfc822.CharsetFunc {
 	return func(label string, res charset.Result) {
 		switch {
@@ -100,11 +242,91 @@ func (m *message) charsetReport() rfc822.CharsetFunc {
 			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "bytes that are not UTF-8 in text that declares no character set")
 		case !res.Known && res.Replaced:
 			// All-ASCII text in such a set loses nothing: no warning.
-			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, fmt.Sprintf("character set %q is not decoded; bytes outside ASCII are U+FFFD", clean.Cut(clean.Line(label), 64)))
+			named := clean.Cut(clean.Line(label), 64)
+			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "unknown", label, named,
+				fmt.Sprintf("character set %q is not decoded; bytes outside ASCII are U+FFFD", named), false,
+				func(count, list string) string {
+					return fmt.Sprintf("%s character sets are not decoded (%s); bytes outside ASCII in them are U+FFFD", count, list)
+				})
 		case res.Replaced:
-			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, fmt.Sprintf("bytes not valid in character set %q", clean.Cut(clean.Line(label), 64)))
+			named := clean.Cut(clean.Line(label), 64)
+			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "invalid", label, named,
+				fmt.Sprintf("bytes not valid in character set %q", named), false,
+				func(count, list string) string {
+					return fmt.Sprintf("bytes not valid in %s character sets (%s)", count, list)
+				})
 		}
 	}
+}
+
+// cuts warns of what a bound of the MIME reader left unread or
+// undecoded, once per part and bound, with the count.
+func (m *message) cuts(c rfc822.Cuts) {
+	if c.LongWords > 0 {
+		m.warnCount(gofastcore.WarnLimitExceeded, "long words", c.LongWords, func(n int) string {
+			return fmt.Sprintf("encoded words that do not end within %d bytes are left as written, not decoded (%s)", rfc822.MaxWord, things(n, "word"))
+		})
+	}
+	if c.LongLabels > 0 {
+		m.warnCount(gofastcore.WarnLimitExceeded, "long labels", c.LongLabels, func(n int) string {
+			return fmt.Sprintf("encoded words whose character set name is longer than %d bytes are left as written, not decoded (%s)", rfc822.MaxLabel, things(n, "word"))
+		})
+	}
+	if c.Pieces > 0 {
+		m.warnCount(gofastcore.WarnLimitExceeded, "pieces", c.Pieces, func(n int) string {
+			return fmt.Sprintf("RFC 2231 parameter pieces numbered above %d are not read (%s)", rfc822.MaxPiece, things(n, "piece"))
+		})
+	}
+}
+
+// headCuts returns the cuts to count for a header whose parameters are
+// read. In the message's own header (depth 0) it was decoded as a field
+// too, where words outside the parameters read are seen, and the
+// parameters where pieces are: each bound counts the more it found of the
+// two, so that a word is counted once.
+func (m *message) headCuts(depth int, key string, c rfc822.Cuts) rfc822.Cuts {
+	if depth > 0 {
+		return c
+	}
+	h := m.head[key]
+	return rfc822.Cuts{
+		LongWords:  max(c.LongWords, h.LongWords),
+		LongLabels: max(c.LongLabels, h.LongLabels),
+		Pieces:     max(c.Pieces, h.Pieces),
+	}
+}
+
+// maxFileNameBytes bounds an attachment's file name.
+const maxFileNameBytes = 4096
+
+// maxImageText bounds the description of an image.
+const maxImageText = 4096
+
+// quoteCut returns s quoted, cut to at most n bytes with a note of the cut.
+func quoteCut(s string, n int) string {
+	if len(s) <= n {
+		return strconv.Quote(s)
+	}
+	return fmt.Sprintf("%q (cut at %d of its %d bytes)", clean.Cut(s, n), n, len(s))
+}
+
+// fileName returns an attachment's file name as one line, cut in the
+// middle where it is longer than maxFileNameBytes so that its extension
+// is kept; a cut is reported.
+func (m *message) fileName(s string) string {
+	s = clean.Line(s)
+	if len(s) <= maxFileNameBytes {
+		return s
+	}
+	m.warnCount(gofastcore.WarnLimitExceeded, "file names", 1, func(n int) string {
+		return fmt.Sprintf("attachment file names longer than %d bytes are cut to %d by leaving out the middle and keeping the extension (%s)", maxFileNameBytes, maxFileNameBytes, things(n, "name"))
+	})
+	ext := ""
+	if i := strings.LastIndexByte(s, '.'); i >= 0 && len(s)-i <= 255 {
+		ext = s[i:]
+	}
+	const mark = "\u2026" // HORIZONTAL ELLIPSIS
+	return clean.Cut(s, maxFileNameBytes-len(ext)-len(mark)) + mark + ext
 }
 
 // take takes n bytes from the text budget, and warns once when it is
@@ -173,8 +395,20 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 	type field struct{ key, name, value string }
 	fields := make([]field, 0, len(h))
 	for _, f := range h {
-		v := clean.Line(rfc822.DecodeText(f.Value, report))
-		fields = append(fields, field{strings.ToLower(f.Name), clean.Line(f.Name), v})
+		d, c := rfc822.DecodeText(f.Value, report)
+		key := strings.ToLower(f.Name)
+		if _, held := m.head[key]; !held && (key == "content-type" || key == "content-disposition") {
+			// The one whose parameters are read: counted there, with what
+			// reading the parameters finds (see entity).
+			if m.head == nil {
+				m.head = map[string]rfc822.Cuts{}
+			}
+			m.head[key] = c
+		} else {
+			m.cuts(c)
+		}
+		v := clean.Line(d)
+		fields = append(fields, field{key, clean.Line(f.Name), v})
 	}
 	get := func(key string) []string {
 		var out []string
@@ -302,7 +536,7 @@ func (r *reader) tail(m *message, headersAt int) {
 		b := &m.part.Blocks[headersAt]
 		if len(m.attached) > 0 {
 			extra := "\nAttachments: " + strings.Join(m.attached, ", ")
-			if !m.cut && r.text.Take(len(extra)) {
+			if r.take(m, len(extra)) {
 				b.Text += extra
 			}
 		}
@@ -315,7 +549,7 @@ func (r *reader) tail(m *message, headersAt int) {
 	if len(m.part.Blocks) == 0 {
 		m.warn(gofastcore.SeverityInfo, gofastcore.WarnPartNoText, "the message has no text")
 	}
-	m.part.Finish()
+	m.finish()
 }
 
 func isShown(key string) bool {
@@ -331,14 +565,19 @@ func isShown(key string) bool {
 }
 
 func (r *reader) headerProblems(m *message, p rfc822.Problems) {
+	r.headerLimits(m, p)
+	if p.Malformed {
+		m.warn(gofastcore.SeverityInfo, gofastcore.WarnInputRepaired, "a header section ends at a line that is not a header field; the body is taken to begin there")
+	}
+}
+
+// headerLimits warns where a header section was cut by a bound.
+func (r *reader) headerLimits(m *message, p rfc822.Problems) {
 	if p.Truncated {
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("a header section is longer than %d bytes; the rest of it is not read", r.e.maxHeader()))
 	}
 	if p.TooMany {
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("a header section has more than %d fields; the rest are not read", rfc822.MaxFields))
-	}
-	if p.Malformed {
-		m.warn(gofastcore.SeverityInfo, gofastcore.WarnInputRepaired, "a header section ends at a line that is not a header field; the body is taken to begin there")
 	}
 }
 
@@ -357,7 +596,9 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 	report := m.charsetReport()
 	mediatype, params := defaultType, map[string]string{}
 	if v, ok := h.Get("Content-Type"); ok {
-		if t, p := rfc822.Params(v, report); strings.Contains(t, "/") {
+		t, p, c := rfc822.Params(v, report)
+		m.cuts(m.headCuts(depth, "content-type", c))
+		if strings.Contains(t, "/") {
 			mediatype, params = t, p
 		} else {
 			params = p
@@ -366,13 +607,15 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 	var disposition string
 	dparams := map[string]string{}
 	if v, ok := h.Get("Content-Disposition"); ok {
-		disposition, dparams = rfc822.Params(v, report)
+		var c rfc822.Cuts
+		disposition, dparams, c = rfc822.Params(v, report)
+		m.cuts(m.headCuts(depth, "content-disposition", c))
 	}
 	name := dparams["filename"]
 	if name == "" {
 		name = params["name"]
 	}
-	name = clean.Cut(clean.Line(name), maxNameBytes)
+	name = m.fileName(name)
 	cte := ""
 	if v, ok := h.Get("Content-Transfer-Encoding"); ok {
 		cte = strings.ToLower(strings.TrimSpace(rfc822.DecodeRaw(v, nil)))
@@ -393,7 +636,10 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 			}
 		}
 		if boundary == "" {
-			m.warn(gofastcore.SeverityWarning, gofastcore.WarnInputRepaired, mediatype+" body with no boundary; read as text")
+			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputRepaired, "no boundary", mediatype, mediatype, mediatype+" body with no boundary; read as text", false,
+				func(count, list string) string {
+					return fmt.Sprintf("bodies of %s media types with no boundary (%s); read as text", count, list)
+				})
 			r.leaf(m, "text/plain", params, name, false, alt, body)
 			return
 		}
@@ -410,8 +656,14 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 				where = s + ":" + where
 			}
 		}
-		m.warn(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, fmt.Sprintf("a part whose content is outside the message (access type %q): %q",
-			clean.Cut(clean.Line(params["access-type"]), 64), clean.Cut(clean.Line(where), 1024)))
+		access := clean.Cut(clean.Line(params["access-type"]), 64)
+		quoted := quoteCut(clean.Line(where), 1024)
+		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputExternalReference, "external body", params["access-type"]+"\x00"+where,
+			fmt.Sprintf("%s (access type %q)", quoted, access),
+			fmt.Sprintf("a part whose content is outside the message (access type %q): %s", access, quoted), true,
+			func(count, list string) string {
+				return fmt.Sprintf("parts refer to %s places outside the message for their content: %s", count, list)
+			})
 	}
 	data, _ := r.decode(m, cte, body) // nil when over the limit
 	if strings.HasPrefix(mediatype, "image/") && !attachment && !alt {
@@ -419,7 +671,11 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 		// place, and an embedded document as well.
 		var desc string
 		if v, ok := h.Get("Content-Description"); ok {
-			desc = rfc822.DecodeText(v, report)
+			var c rfc822.Cuts
+			desc, c = rfc822.DecodeText(v, report)
+			if depth > 0 {
+				m.cuts(c) // the message's own header is counted where it is read
+			}
 		}
 		r.image(m, mediatype, name, desc, data)
 	}
@@ -434,9 +690,15 @@ func (r *reader) image(m *message, mediatype, name, desc string, data []byte) {
 	if r.opts.Images == gofastcore.ImagesNone {
 		return
 	}
-	text := gofastcore.ExpandLigatures(clean.Cut(clean.Line(desc), 4096))
+	desc = clean.Line(desc)
+	text := gofastcore.ExpandLigatures(clean.Cut(desc, maxImageText))
 	if !r.take(m, gofastcore.BlockCost+len(text)) {
 		return
+	}
+	if len(desc) > maxImageText {
+		m.warnCount(gofastcore.WarnLimitExceeded, "image text", 1, func(n int) string {
+			return fmt.Sprintf("image descriptions longer than %d bytes are cut to %d (%s)", maxImageText, maxImageText, things(n, "description"))
+		})
 	}
 	img := &gofastcore.Image{MIME: mediatype}
 	if len(data) > 0 {
@@ -532,12 +794,18 @@ func (r *reader) multipart(m *message, mediatype, boundary string, body []byte, 
 	left := max(r.e.maxParts()-m.parts, 0)
 	mp := rfc822.Split(body, boundary, left+1)
 	if len(mp.Parts) == 0 {
-		m.warn(gofastcore.SeverityWarning, gofastcore.WarnInputRepaired, mediatype+" body in which the boundary is never found; read as text")
+		m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnInputRepaired, "boundary not found", mediatype, mediatype, mediatype+" body in which the boundary is never found; read as text", false,
+			func(count, list string) string {
+				return fmt.Sprintf("bodies of %s media types in which the boundary is never found (%s); read as text", count, list)
+			})
 		r.leaf(m, "text/plain", nil, "", false, alt, body)
 		return
 	}
 	if !mp.Closed {
-		m.warn(gofastcore.SeverityInfo, gofastcore.WarnInputRepaired, mediatype+" body with no closing boundary; the last part runs to its end")
+		m.warnEach(gofastcore.SeverityInfo, gofastcore.WarnInputRepaired, "not closed", mediatype, mediatype, mediatype+" body with no closing boundary; the last part runs to its end", false,
+			func(count, list string) string {
+				return fmt.Sprintf("bodies of %s media types with no closing boundary (%s); the last part of each runs to its end", count, list)
+			})
 	}
 	r.stored(m, NotePreamble, mp.Preamble)
 	defaultType := "text/plain"
@@ -560,20 +828,27 @@ func (r *reader) multipart(m *message, mediatype, boundary string, body []byte, 
 		for i, s := range subs {
 			t := defaultType
 			if v, ok := s.h.Get("Content-Type"); ok {
-				if mt, _ := rfc822.Params(v, nil); strings.Contains(mt, "/") {
+				if mt, _, _ := rfc822.Params(v, nil); strings.Contains(mt, "/") {
 					t = mt
 				}
 			}
 			kinds = append(kinds, t)
 			d, _ := s.h.Get("Content-Disposition")
-			if dt, _ := rfc822.Params(d, nil); t == "text/plain" && dt != "attachment" && plain < 0 {
+			if dt, _, _ := rfc822.Params(d, nil); t == "text/plain" && dt != "attachment" && plain < 0 {
 				plain = i
 			}
 		}
-		if plain >= 0 && !alt {
-			m.warn(gofastcore.SeverityWarning, WarnAlternatives, fmt.Sprintf("%d alternative bodies (%s); the blocks are the text/plain one, the others are embedded documents", len(subs), clean.Cut(clean.Line(strings.Join(kinds, ", ")), 512)))
-		} else if !alt {
-			m.warn(gofastcore.SeverityWarning, WarnAlternatives, fmt.Sprintf("%d alternative bodies (%s), none of them text/plain; each is an embedded document", len(subs), clean.Cut(clean.Line(strings.Join(kinds, ", ")), 512)))
+		if !alt {
+			list := clean.Cut(clean.Line(strings.Join(kinds, ", ")), 512)
+			one := fmt.Sprintf("%d alternative bodies (%s); the blocks are the text/plain one, the others are embedded documents", len(subs), list)
+			if plain < 0 {
+				one = fmt.Sprintf("%d alternative bodies (%s), none of them text/plain; each is an embedded document", len(subs), list)
+			}
+			value := fmt.Sprint(plain >= 0, "\x00", strings.Join(kinds, "\x00"))
+			m.warnEach(gofastcore.SeverityWarning, WarnAlternatives, "", value, "("+list+")", one, true,
+				func(count, list string) string {
+					return fmt.Sprintf("%s sets of alternative bodies of different kinds: %s; in each, a text/plain body that is not an attachment gives the blocks, the others are embedded documents", count, list)
+				})
 		}
 		for i, s := range subs {
 			r.entity(m, s.h, s.body, depth+1, alt || plain >= 0 && i != plain, defaultType)
@@ -622,7 +897,11 @@ func (r *reader) decode(m *message, cte string, body []byte) ([]byte, bool) {
 	case "", "7bit", "8bit", "binary":
 		out = body
 	default:
-		m.warn(gofastcore.SeverityWarning, WarnUnknownTransferEncoding, fmt.Sprintf("transfer encoding %q; the bytes are taken as they are", clean.Cut(clean.Line(cte), 64)))
+		v := clean.Cut(clean.Line(cte), 64)
+		m.warnEach(gofastcore.SeverityWarning, WarnUnknownTransferEncoding, "", cte, v, fmt.Sprintf("transfer encoding %q; the bytes are taken as they are", v), false,
+			func(count, list string) string {
+				return fmt.Sprintf("%s transfer encodings (%s); the bytes are taken as they are", count, list)
+			})
 		out = body
 	}
 	if m.undecode || !r.dec.Take(int64(len(out))) {
