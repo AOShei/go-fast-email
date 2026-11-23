@@ -12,6 +12,8 @@
 package textbody
 
 import (
+	"bytes"
+	"slices"
 	"strings"
 
 	"github.com/AOShei/go-fast-core"
@@ -48,15 +50,20 @@ type line struct {
 // paragraph being gathered and the blocks made, never a record per line,
 // since a body of nothing but line breaks costs a sender one byte a line.
 func Blocks(dst []gofastcore.Block, text string, o Options, take func(int) bool) ([]gofastcore.Block, bool) {
-	blocks := dst
-	var para strings.Builder
+	// Room for a block a paragraph, up to 64: a blank line ends each but
+	// the last. Beyond 64 the list grows as append grows it, so that a
+	// body of blank lines costs no more than its blocks.
+	blocks := slices.Grow(dst, min(strings.Count(text, "\n\n")+1, 64))
+	// The paragraph is gathered in para, which is reused from one to the
+	// next; its text is copied out once, at its length.
+	var para []byte
 	depth, inSig := 0, false
 	flush := func() bool {
-		if para.Len() == 0 {
+		if len(para) == 0 {
 			return true
 		}
-		t := strings.TrimSpace(para.String())
-		para.Reset()
+		t := string(bytes.TrimSpace(para))
+		para = para[:0]
 		if t == "" {
 			return true
 		}
@@ -94,10 +101,10 @@ func Blocks(dst []gofastcore.Block, text string, o Options, take func(int) bool)
 				return true
 			}
 		}
-		if para.Len() > 0 {
-			para.WriteByte('\n')
+		if len(para) > 0 {
+			para = append(para, '\n')
 		}
-		para.WriteString(strings.TrimRight(l.text, " \t"))
+		para = append(para, strings.TrimRight(l.text, " \t")...)
 		return true
 	})
 	if cut || !flush() {
