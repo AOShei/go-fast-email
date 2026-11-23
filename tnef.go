@@ -84,7 +84,7 @@ func (e *Extractor) tnefDocument(ctx context.Context, data []byte, opts *gofastc
 	if _, ok := p.values[uint32(pidBody)<<16|ptUnicode]; !ok && len(t.Body) > 0 {
 		p.values[uint32(pidBody)<<16|ptString8] = t.Body
 	}
-	subject := clean.Line(p.str(pidSubject))
+	subject := m.line(p.str(pidSubject))
 	r.head(m, subject, nil)
 	md := &r.doc.Metadata
 	md.Title = gofastcore.ExpandLigatures(subject)

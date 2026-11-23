@@ -85,6 +85,23 @@ type message struct {
 	props    int                    // property readers made, in an Outlook message or TNEF stream
 	order    []*group               // groups in the order of their warnings
 	inline   bool                   // a single message: its headers go to the metadata
+	controls int                    // control characters removed from its text
+}
+
+// text is clean.Text for text that is output: it counts the control
+// characters removed.
+func (m *message) text(s string) string {
+	t, n := clean.TextN(s)
+	m.controls += n
+	return t
+}
+
+// line is clean.Line for text that is output (a header value, a
+// subject, a name): it counts the control characters removed.
+func (m *message) line(s string) string {
+	t, n := clean.LineN(s)
+	m.controls += n
+	return t
 }
 
 func (m *message) warn(sev gofastcore.Severity, code, msg string) {
@@ -205,6 +222,14 @@ func (m *message) warnCount(code, key string, n int, text func(total int) string
 // A grouped warning is rewritten only where it is still at its place: a
 // part may keep only so many warnings, and then it was never written.
 func (m *message) finish() {
+	if m.controls > 0 {
+		msg := strconv.Itoa(m.controls) + " control characters with no meaning as text were removed from the message"
+		if m.controls == 1 {
+			msg = "1 control character with no meaning as text was removed from the message"
+		}
+		m.part.Warn(gofastcore.SeverityInfo, gofastcore.WarnTextControlCharactersRemoved, msg)
+		m.controls = 0
+	}
 	ws := m.part.Warnings
 	for _, g := range m.order {
 		if g.at >= len(ws) || ws[g.at].Code != g.code || ws[g.at].Message != g.first {
@@ -414,7 +439,7 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 		} else {
 			m.cuts(c)
 		}
-		v := clean.Line(d)
+		v := m.line(d)
 		fields = append(fields, field{key, clean.Line(f.Name), v})
 	}
 	get := func(key string) []string {
@@ -700,10 +725,13 @@ func (r *reader) image(m *message, mediatype, name, desc string, data []byte) {
 	if r.opts.Images == gofastcore.ImagesNone {
 		return
 	}
-	desc = clean.Line(desc)
+	desc, controls := clean.LineN(desc)
 	text := gofastcore.ExpandLigatures(clean.Cut(desc, maxImageText))
 	if !r.take(m, gofastcore.BlockCost+len(text)) {
 		return
+	}
+	if text != "" {
+		m.controls += controls
 	}
 	if len(desc) > maxImageText {
 		m.warnCount(gofastcore.WarnLimitExceeded, "image text", 1, func(n int) string {
@@ -802,7 +830,7 @@ func (r *reader) textBody(m *message, params map[string]string, data []byte) {
 		}
 		m.charsetReport()(charset.Normalize(label), res)
 	}
-	text = clean.Text(text)
+	text = m.text(text)
 	o := textbody.Options{
 		Flowed: strings.EqualFold(params["format"], "flowed"),
 		DelSp:  strings.EqualFold(params["delsp"], "yes"),
@@ -894,7 +922,7 @@ func (r *reader) stored(m *message, kind string, raw []byte) {
 		return
 	}
 	text, _ := charset.Decode("", raw)
-	text = strings.TrimSpace(clean.Text(text))
+	text = strings.TrimSpace(m.text(text))
 	if text == "" {
 		return
 	}
