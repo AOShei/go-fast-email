@@ -6,7 +6,7 @@ the shared go-fast document model,
 The library uses the standard library and go-fast-core only; its command
 also uses go-fast-html and go-fast-rtf.
 
-**Status: v0.1.3 (2026-11-22).** How it was built is in
+**Status: v0.1.4 (2026-11-22).** How it was built is in
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) (development history);
 the changes are in [`CHANGELOG.md`](CHANGELOG.md).
 

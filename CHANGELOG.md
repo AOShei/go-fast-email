@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.4 (2026-11-22)
 
 The command reads more attachments. The library is unchanged.
 
