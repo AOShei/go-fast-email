@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## v0.2.1 (2026-11-24)
+
+- **go-fast-core v0.1.4** (was v0.1.2): `Document.Text` and `Markdown`
+  allocate their result once. The output is unchanged.
 
 ### Faster
 
