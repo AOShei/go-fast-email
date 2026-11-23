@@ -567,8 +567,7 @@ func (r *reader) outlookBody(m *message, p *props) {
 		}
 	}
 	if plain != "" {
-		blocks, _ := textbody.Blocks(m.text(plain), textbody.Options{}, func(n int) bool { return r.take(m, n) })
-		m.body = append(m.body, blocks...)
+		m.part.Blocks, _ = textbody.Blocks(m.part.Blocks, m.text(plain), textbody.Options{}, func(n int) bool { return r.take(m, n) })
 	}
 	if hasHTML {
 		mime := "text/html"

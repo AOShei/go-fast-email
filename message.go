@@ -72,8 +72,9 @@ type reader struct {
 
 // message is the state of one message while it is read.
 type message struct {
+	// part is the message's part. Its blocks are the heading and the
+	// headers, then the body's blocks as they are read.
 	part     gofastcore.Part
-	body     []gofastcore.Block
 	cut      bool // the text budget is spent
 	undecode bool // the decode budget is spent
 	parts    int  // MIME parts seen
@@ -402,7 +403,8 @@ func (r *reader) eml(src io.ReaderAt, size int64) (*gofastcore.Document, error) 
 	}
 	limit := r.e.maxMessage()
 	n := min(size, limit)
-	raw := make([]byte, n)
+	raw := getBuffer(n)
+	defer putBuffer(raw)
 	if got, err := src.ReadAt(raw, 0); int64(got) < n {
 		return nil, fmt.Errorf("gofastemail: reading: %v: %w", err, gofastcore.ErrMalformed)
 	}
@@ -431,7 +433,9 @@ func (r *reader) finish() *gofastcore.Document {
 
 // looksLikeMessage reports whether b begins with a header field.
 func looksLikeMessage(b []byte) bool {
-	h, _, p := rfc822.ParseHeader(b, 64<<10)
+	s := getScratch()
+	defer putScratch(s)
+	h, _, p := s.ParseHeader(b, 64<<10)
 	return len(h) > 0 && !(p.Malformed && len(h) == 0)
 }
 
@@ -439,7 +443,11 @@ func looksLikeMessage(b []byte) bool {
 // a mailbox, without "From ".
 func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 	m.part.Kind, m.part.Number = gofastcore.PartMessage, number
-	h, bodyAt, prob := rfc822.ParseHeader(raw, r.e.maxHeader())
+	// The header is read until the message is: its values are made into
+	// strings where they are kept.
+	s := getScratch()
+	defer putScratch(s)
+	h, bodyAt, prob := s.ParseHeader(raw, r.e.maxHeader())
 	r.headerProblems(m, prob)
 	report := m.decoding()
 
@@ -583,10 +591,10 @@ func (r *reader) head(m *message, subject string, lines []string) int {
 	return len(m.part.Blocks) - 1
 }
 
-// tail adds the body's blocks after the headers, the names of the
-// attachments to the headers block, and finishes the part.
+// tail adds the names of the attachments to the headers block, and
+// finishes the part. The body's blocks are in the part already: nothing
+// is added to it between the headers and the body.
 func (r *reader) tail(m *message, headersAt int) {
-	m.part.Blocks = append(m.part.Blocks, m.body...)
 	if headersAt >= 0 && (len(m.attached) > 0 || len(m.children) > 0) {
 		b := &m.part.Blocks[headersAt]
 		if len(m.attached) > 0 {
@@ -764,14 +772,16 @@ func (r *reader) image(m *message, mediatype, name, desc string, data []byte) {
 		img.ID = "sha256-" + hex.EncodeToString(sum[:12])
 		img.Width, img.Height = imageSize(mediatype, data)
 		if r.opts.Images == gofastcore.ImagesData {
-			img.Data = data
+			// A copy: data may be the bytes of the message, whose buffer
+			// is reused once the message is read.
+			img.Data = bytes.Clone(data)
 		}
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindImage, Text: text, Image: img}
 	if name != "" {
 		b.Attrs = map[string]string{gofastcore.AttrName: name}
 	}
-	m.body = append(m.body, b)
+	m.part.Blocks = append(m.part.Blocks, b)
 }
 
 // imageSize returns the pixel size of a PNG, JPEG or GIF image from its
@@ -855,8 +865,7 @@ func (r *reader) textBody(m *message, params map[string]string, data []byte) {
 		Flowed: strings.EqualFold(params["format"], "flowed"),
 		DelSp:  strings.EqualFold(params["delsp"], "yes"),
 	}
-	blocks, _ := textbody.Blocks(text, o, func(n int) bool { return r.take(m, n) })
-	m.body = append(m.body, blocks...)
+	m.part.Blocks, _ = textbody.Blocks(m.part.Blocks, text, o, func(n int) bool { return r.take(m, n) })
 }
 
 // multipart reads a multipart body.
@@ -949,7 +958,7 @@ func (r *reader) stored(m *message, kind string, raw []byte) {
 	if !r.take(m, gofastcore.BlockCost+len(text)) {
 		return
 	}
-	m.body = append(m.body, gofastcore.Block{Kind: gofastcore.KindNote, Text: text,
+	m.part.Blocks = append(m.part.Blocks, gofastcore.Block{Kind: gofastcore.KindNote, Text: text,
 		Attrs: map[string]string{gofastcore.AttrNoteType: kind}})
 }
 

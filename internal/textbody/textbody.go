@@ -12,6 +12,8 @@
 package textbody
 
 import (
+	"bytes"
+	"slices"
 	"strings"
 
 	"github.com/AOShei/go-fast-core"
@@ -37,8 +39,9 @@ type line struct {
 	sig   bool // the signature separator
 }
 
-// Blocks returns the blocks of text, which uses "\n" for line breaks and
-// has no other control characters. take is called with the cost of each
+// Blocks appends the blocks of text to dst and returns the result. The
+// text uses "\n" for line breaks and has no other control characters.
+// take is called with the cost of each
 // block before it is added (gofastcore.BlockCost and the text); when it
 // returns false no more blocks are made, and Blocks reports that it was
 // cut short.
@@ -46,16 +49,21 @@ type line struct {
 // The text is read a line at a time: what is held beside it is the
 // paragraph being gathered and the blocks made, never a record per line,
 // since a body of nothing but line breaks costs a sender one byte a line.
-func Blocks(text string, o Options, take func(int) bool) ([]gofastcore.Block, bool) {
-	var blocks []gofastcore.Block
-	var para strings.Builder
+func Blocks(dst []gofastcore.Block, text string, o Options, take func(int) bool) ([]gofastcore.Block, bool) {
+	// Room for a block a paragraph, up to 64: a blank line ends each but
+	// the last. Beyond 64 the list grows as append grows it, so that a
+	// body of blank lines costs no more than its blocks.
+	blocks := slices.Grow(dst, min(strings.Count(text, "\n\n")+1, 64))
+	// The paragraph is gathered in para, which is reused from one to the
+	// next; its text is copied out once, at its length.
+	var para []byte
 	depth, inSig := 0, false
 	flush := func() bool {
-		if para.Len() == 0 {
+		if len(para) == 0 {
 			return true
 		}
-		t := strings.TrimSpace(para.String())
-		para.Reset()
+		t := string(bytes.TrimSpace(para))
+		para = para[:0]
 		if t == "" {
 			return true
 		}
@@ -93,10 +101,10 @@ func Blocks(text string, o Options, take func(int) bool) ([]gofastcore.Block, bo
 				return true
 			}
 		}
-		if para.Len() > 0 {
-			para.WriteByte('\n')
+		if len(para) > 0 {
+			para = append(para, '\n')
 		}
-		para.WriteString(strings.TrimRight(l.text, " \t"))
+		para = append(para, strings.TrimRight(l.text, " \t")...)
 		return true
 	})
 	if cut || !flush() {

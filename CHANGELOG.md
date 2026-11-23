@@ -4,6 +4,21 @@
 
 ### Faster
 
+- **A message's memory is reused for the next.** The bytes of a message,
+  the scratch of its header and the reader that finds the messages of a
+  mailbox come from pools and go back when the message is read; the
+  body's blocks are built straight into the message's part instead of
+  three lists in turn; a paragraph is gathered in one reused buffer; a
+  mailbox's `>From ` lines are unquoted in place. On 7,551 messages,
+  579 MB allocated becomes 355 MB (312 MB with go-fast-core's next
+  `Text`), and with 24 workers the batch takes 0.28–0.30 s instead of
+  0.44–0.46 s, for a peak of 35–42 MB instead of 31–35 (three runs each,
+  interleaved). One worker: 0.51 s instead of 0.53–0.55 s. Output is byte-identical on
+  7,672 messages with three option sets. With `Images: ImagesData`, the
+  bytes of a picture are now copied, since they may be the message's.
+  The tests run with memory overwritten as it is given back, and fail if
+  a document refers to it.
+
 - **Fewer allocations.** A message that begins with a mailbox `From `
   line (as mail exported from a list archive does) no longer takes a
   64 KiB read buffer, nor a mailbox a new one after each message, and the
