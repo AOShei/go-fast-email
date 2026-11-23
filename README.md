@@ -14,7 +14,7 @@ also uses go-fast-html and go-fast-rtf.
 | 200 | 0.43 s | 24 MB | 0.16 s | 63 MB |
 | 400 | 0.41 s | 33 MB | 0.12 s | 125 MB |
 
-**Status: v0.2.0 (2026-11-23).** How it was built is in
+**Status: v0.2.1 (2026-11-24).** How it was built is in
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) (development history);
 the changes are in [`CHANGELOG.md`](CHANGELOG.md).
 
