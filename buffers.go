@@ -18,10 +18,13 @@ import (
 // strings, which copy; the bytes of an image are copied (see image); an
 // embedded document's extractor is handed a reader, which copies.
 
-// Message buffers come in classes of powers of two from 4 KiB to 8 MiB;
-// a larger message has a buffer of its own.
+// Message buffers come in classes of powers of two from 256 bytes to
+// 8 MiB; a larger message has a buffer of its own. The classes start
+// small so that a buffer the pool cannot give (it is emptied as garbage
+// is collected) costs about what is read: a mailbox of a great many tiny
+// messages looks at 256 bytes of each one's header.
 const (
-	minBufferClass = 12 // 4 KiB
+	minBufferClass = 8  // 256 bytes
 	maxBufferClass = 23 // 8 MiB
 )
 
