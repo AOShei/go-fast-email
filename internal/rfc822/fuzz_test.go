@@ -1,6 +1,8 @@
 package rfc822
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 	"unicode/utf8"
 )
@@ -12,9 +14,16 @@ func FuzzHeader(f *testing.F) {
 	f.Add([]byte("Subject: =?utf-8?q?a?= =?utf-8?b?Yg==?=\nContent-Type: text/plain; charset*0*=utf-8''a; charset*1=b\n\nbody"))
 	f.Add([]byte("A: 1\n  2\nnot a header\n"))
 	f.Fuzz(func(t *testing.T, data []byte) {
-		h, at, _ := ParseHeader(data, 4096)
+		h, at, p := ParseHeader(data, 4096)
 		if at < 0 || at > len(data) {
 			t.Fatalf("body at %d of %d", at, len(data))
+		}
+		// A scratch that read another header first reads it the same.
+		var s Scratch
+		s.ParseHeader([]byte("Other: "+strings.Repeat("x", len(data)%300)+"\n\tmore\nAnd: y\n\n"), 4096)
+		sh, sat, sp := s.ParseHeader(data, 4096)
+		if !reflect.DeepEqual(sh, h) || sat != at || sp != p {
+			t.Fatalf("with a scratch %q %d %+v, without %q %d %+v", sh, sat, sp, h, at, p)
 		}
 		for _, field := range h {
 			if s, _ := DecodeText(field.Value, nil); !utf8.ValidString(s) {

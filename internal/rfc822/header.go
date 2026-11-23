@@ -8,6 +8,7 @@ package rfc822
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 )
 
@@ -56,8 +57,37 @@ const MaxFields = 10_000
 // section, as a blank line does, and the body begins with that line. A
 // first line that is an mbox "From " line is skipped.
 func ParseHeader(msg []byte, maxBytes int) (Header, int, Problems) {
-	var h Header
-	var p Problems
+	return parseHeader(msg, maxBytes, nil)
+}
+
+// A Scratch holds the memory ParseHeader uses, so that one header's can
+// be used again for the next. The zero value is ready to use.
+type Scratch struct {
+	buf []byte
+	h   Header
+}
+
+// ParseHeader is ParseHeader, with the memory of s. What it returns
+// refers to that memory: it may be used only until s parses again.
+func (s *Scratch) ParseHeader(msg []byte, maxBytes int) (Header, int, Problems) {
+	return parseHeader(msg, maxBytes, s)
+}
+
+// Poison overwrites the memory of s, for tests that check nothing still
+// refers to it.
+func (s *Scratch) Poison() {
+	b := s.buf[:cap(s.buf)]
+	for i := range b {
+		b[i] = 0xFF
+	}
+}
+
+// Small reports whether s holds no more than a header of 64 KiB and 1,024
+// fields needs, so that a caller keeping scratches can leave a larger one
+// to be collected.
+func (s *Scratch) Small() bool { return cap(s.buf) <= 64<<10 && cap(s.h) <= 1024 }
+
+func parseHeader(msg []byte, maxBytes int, s *Scratch) (h Header, at int, p Problems) {
 	pos := 0
 	limit := len(msg)
 	if maxBytes > 0 && limit > maxBytes {
@@ -77,9 +107,16 @@ func ParseHeader(msg []byte, maxBytes int) (Header, int, Problems) {
 			n = i + 1
 		}
 	}
-	buf := make([]byte, 0, min(n, 64<<10))
 	// A field a line at most: as many lines as the section has.
-	h = make(Header, 0, min(bytes.Count(msg[pos:pos+min(n, 64<<10)], []byte("\n"))+1, MaxFields))
+	fields := min(bytes.Count(msg[pos:pos+min(n, 64<<10)], []byte("\n"))+1, MaxFields)
+	var buf []byte
+	if s != nil {
+		// The scratch keeps what was made or grown, for the next header.
+		buf, h = slices.Grow(s.buf[:0], min(n, 64<<10)), slices.Grow(s.h[:0], fields)
+		defer func() { s.buf, s.h = buf[:0], h[:0] }()
+	} else {
+		buf, h = make([]byte, 0, min(n, 64<<10)), make(Header, 0, fields)
+	}
 	start := 0 // where the last value begins in buf
 	for pos < limit {
 		end := lineEnd(msg, pos)

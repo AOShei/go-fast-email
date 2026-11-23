@@ -91,9 +91,10 @@ func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Par
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("message of %d bytes read to %d", n, limit))
 		n = limit
 	}
-	raw := make([]byte, n)
-	got, _ := src.ReadAt(raw, s.start)
-	raw = raw[:got]
+	buf := getBuffer(n)
+	defer putBuffer(buf)
+	got, _ := src.ReadAt(buf, s.start)
+	raw := buf[:got]
 	if !s.counted {
 		raw = unquote(raw)
 	}
@@ -113,11 +114,14 @@ func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Par
 
 // unquote removes one ">" from every line that begins with one or more
 // ">" and then "From " (mboxrd).
+//
+// The lines are moved down in b, which is returned shortened: a line is
+// never written past where it was read.
 func unquote(b []byte) []byte {
 	if !bytes.Contains(b, []byte(">From ")) {
 		return b
 	}
-	out := make([]byte, 0, len(b))
+	out := b[:0]
 	for len(b) > 0 {
 		end := bytes.IndexByte(b, '\n') + 1
 		if end == 0 {
@@ -137,13 +141,15 @@ func unquote(b []byte) []byte {
 // order, until it returns false. It reads the file a line at a time, and
 // holds no more than a buffer and one header section.
 func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) error {
-	// One buffer for the whole scan, no larger than the file: a file of
-	// one message of a few KB (an .eml saved with its "From " line) does
-	// not take 64 KiB, nor a mailbox a new buffer after every counted
-	// message.
+	// One reader for the whole scan, with a buffer the size of the file
+	// rounded up to a power of two, from 4 KiB to 64 KiB, and reused from
+	// one file to the next: a file of one message of a few KB (an .eml
+	// saved with its "From " line) does not take 64 KiB, nor a mailbox a
+	// new buffer after every counted message.
 	const bufSize = 64 << 10
 	var off int64
-	br := bufio.NewReaderSize(io.NewSectionReader(src, 0, size), int(min(max(size, 16), bufSize)))
+	br := getReader(io.NewSectionReader(src, 0, size), min(size, bufSize))
+	defer putReader(br)
 	newReader := func(at int64) *bufio.Reader {
 		br.Reset(io.NewSectionReader(src, at, size-at))
 		return br
@@ -251,11 +257,17 @@ func countedEnd(src io.ReaderAt, size, start int64, maxHeader int) (int64, bool)
 	var h rfc822.Header
 	var bodyAt int
 	var p rfc822.Problems
+	s := getScratch()
+	defer putScratch(s)
+	defer func() { putBuffer(head) }()
 	for want := min(avail, 256); ; want = min(avail, want*4) {
-		head = make([]byte, want)
+		if head != nil {
+			putBuffer(head)
+		}
+		head = getBuffer(want)
 		n, _ := src.ReadAt(head, start)
 		head = head[:n]
-		h, bodyAt, p = rfc822.ParseHeader(head, len(head))
+		h, bodyAt, p = s.ParseHeader(head, len(head))
 		ended := bodyAt < len(head) && !p.Malformed || // a blank line ended it
 			p.Malformed && bytes.IndexByte(head[bodyAt:], '\n') >= 0 // a whole line that is no field
 		if ended || want >= avail || int64(n) < want {

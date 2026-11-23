@@ -403,7 +403,8 @@ func (r *reader) eml(src io.ReaderAt, size int64) (*gofastcore.Document, error) 
 	}
 	limit := r.e.maxMessage()
 	n := min(size, limit)
-	raw := make([]byte, n)
+	raw := getBuffer(n)
+	defer putBuffer(raw)
 	if got, err := src.ReadAt(raw, 0); int64(got) < n {
 		return nil, fmt.Errorf("gofastemail: reading: %v: %w", err, gofastcore.ErrMalformed)
 	}
@@ -432,7 +433,9 @@ func (r *reader) finish() *gofastcore.Document {
 
 // looksLikeMessage reports whether b begins with a header field.
 func looksLikeMessage(b []byte) bool {
-	h, _, p := rfc822.ParseHeader(b, 64<<10)
+	s := getScratch()
+	defer putScratch(s)
+	h, _, p := s.ParseHeader(b, 64<<10)
 	return len(h) > 0 && !(p.Malformed && len(h) == 0)
 }
 
@@ -440,7 +443,11 @@ func looksLikeMessage(b []byte) bool {
 // a mailbox, without "From ".
 func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 	m.part.Kind, m.part.Number = gofastcore.PartMessage, number
-	h, bodyAt, prob := rfc822.ParseHeader(raw, r.e.maxHeader())
+	// The header is read until the message is: its values are made into
+	// strings where they are kept.
+	s := getScratch()
+	defer putScratch(s)
+	h, bodyAt, prob := s.ParseHeader(raw, r.e.maxHeader())
 	r.headerProblems(m, prob)
 	report := m.decoding()
 
@@ -765,7 +772,9 @@ func (r *reader) image(m *message, mediatype, name, desc string, data []byte) {
 		img.ID = "sha256-" + hex.EncodeToString(sum[:12])
 		img.Width, img.Height = imageSize(mediatype, data)
 		if r.opts.Images == gofastcore.ImagesData {
-			img.Data = data
+			// A copy: data may be the bytes of the message, whose buffer
+			// is reused once the message is read.
+			img.Data = bytes.Clone(data)
 		}
 	}
 	b := gofastcore.Block{Kind: gofastcore.KindImage, Text: text, Image: img}
