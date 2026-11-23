@@ -406,7 +406,7 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 			p.alt = localeCodepage(lcid)
 		}
 	}
-	line := func(s string) string { return clean.Line(s) }
+	line := m.line
 
 	subject := line(p.str(pidSubject))
 	from := address(line(p.str(pidSenderName)), line(firstOf(p.str(pidSenderSMTPAddress), p.str(pidSenderEmail))))
@@ -567,7 +567,7 @@ func (r *reader) outlookBody(m *message, p *props) {
 		}
 	}
 	if plain != "" {
-		blocks, _ := textbody.Blocks(clean.Text(plain), textbody.Options{}, func(n int) bool { return r.take(m, n) })
+		blocks, _ := textbody.Blocks(m.text(plain), textbody.Options{}, func(n int) bool { return r.take(m, n) })
 		m.body = append(m.body, blocks...)
 	}
 	if hasHTML {

@@ -2,7 +2,16 @@
 
 ## Unreleased
 
-The command reads more attachments. The library is unchanged.
+Control characters removed from a message are reported, and the command
+reads more attachments.
+
+- **`text.control_characters_removed`** (info; go-fast-core v0.1.2).
+  Control characters with no meaning as text were removed from bodies and
+  header values silently; the message's part now carries the warning with
+  the count. Tab and line ends are not counted, nor names (file names,
+  message ids). The usual source is the terminal colour codes of build
+  logs mailed by CI: in the public corpus, a mailing-list archive has
+  messages with hundreds of ESC characters. Requires go-fast-core v0.1.2.
 
 - **go-fast-html v0.2.0** (was v0.1.1) and **go-fast-rtf v0.1.2** (was
   v0.1.1). Their output-cuts and warning-cap changes reach the documents

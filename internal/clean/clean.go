@@ -18,12 +18,32 @@ func Text(s string) string {
 	return gofastcore.ExpandLigatures(Raw(s))
 }
 
+// TextN is Text, and the number of control characters removed: not
+// counting tab and line ends, which are kept.
+func TextN(s string) (string, int) {
+	t, n := raw(s)
+	return gofastcore.ExpandLigatures(t), n
+}
+
+// LineN is Line, and the number of control characters removed: not
+// counting tab and line ends, which become spaces.
+func LineN(s string) (string, int) {
+	t, n := raw(s)
+	return line(t), n
+}
+
 // Raw is Text without the expansion of ligatures, for strings that
 // identify something: an address, a message id, a file name.
 func Raw(s string) string {
+	t, _ := raw(s)
+	return t
+}
+
+func raw(s string) (string, int) {
 	if !needs(s) {
-		return s
+		return s, 0
 	}
+	removed := 0
 	var sb strings.Builder
 	sb.Grow(len(s))
 	for i := 0; i < len(s); {
@@ -39,12 +59,13 @@ func Raw(s string) string {
 		case r == '\n' || r == '\t':
 			sb.WriteRune(r)
 		case unicode.Is(unicode.Cc, r):
+			removed++
 		default:
 			sb.WriteString(s[i : i+n])
 		}
 		i += n
 	}
-	return sb.String()
+	return sb.String(), removed
 }
 
 func needs(s string) bool {
@@ -67,7 +88,10 @@ func needs(s string) bool {
 // Line returns s as one line: line breaks and tabs as spaces, runs of
 // spaces as one, trimmed. For a header value, a part name or a file name.
 func Line(s string) string {
-	s = Raw(s)
+	return line(Raw(s))
+}
+
+func line(s string) string {
 	if strings.ContainsAny(s, "\n\t") {
 		s = strings.Join(strings.Fields(s), " ")
 	}
