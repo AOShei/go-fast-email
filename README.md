@@ -6,15 +6,13 @@ the shared go-fast document model,
 The library uses the standard library and go-fast-core only; its command
 also uses go-fast-html and go-fast-rtf.
 
-**Speed and memory.** Messages are small, so the heap stays small and Go's garbage collector runs often: with many workers its pauses, not the reading, take most of the time. Memory can be traded for speed with `GOGC` in the environment (or `debug.SetGCPercent` in a program); the command and the library keep Go's default, 100. On 7,551 messages (56 MB) with 24 workers:
+**Speed and memory.** Messages are small, so the heap stays small and Go's garbage collector runs often: with many workers its pauses, not the reading, take most of the time. Memory can be traded for speed with `GOGC` in the environment (or `debug.SetGCPercent` in a program); the command and the library keep Go's default, 100. On 7,551 messages (56 MB), each read from its file as a pipeline does (wall time, peak memory; [`bench/`](bench/README.md)):
 
-| `GOGC` | Time | Peak memory |
-|---|---|---|
-| 100 (default) | 0.38 s | 32 MB |
-| 200 | 0.15 s | 65 MB |
-| 400 | 0.11 s | 129 MB |
-
-With one worker the three take 0.49 s, 0.45 s and 0.41 s.
+| `GOGC` | One worker | Peak | 24 workers | Peak |
+|---|---|---|---|---|
+| 100 (default) | 0.49 s | 22 MB | 0.42 s | 33 MB |
+| 200 | 0.43 s | 24 MB | 0.16 s | 63 MB |
+| 400 | 0.41 s | 33 MB | 0.12 s | 125 MB |
 
 **Status: v0.2.0 (2026-11-23).** How it was built is in
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) (development history);
