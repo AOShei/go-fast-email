@@ -63,9 +63,9 @@ func (c *Cuts) Add(o Cuts) {
 // the header: the others are not used, so nothing is lost. RFC 2231
 // pieces past MaxPiece and encoded words left as written are counted in
 // the Cuts returned.
-func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
+func Params(raw []byte, d *Decoding) (string, map[string]string, Cuts) {
 	var cuts Cuts
-	s := DecodeRaw(raw, report)
+	s := DecodeRaw(raw, d)
 	value, rest, _ := strings.Cut(s, ";")
 	value = strings.ToLower(strings.TrimSpace(value))
 	if i := strings.IndexAny(value, " \t("); i >= 0 {
@@ -148,7 +148,7 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
 	params := map[string]string{}
 	for _, name := range plainOrder {
 		var c Cuts
-		params[name], c = decodeWordsIn(plain[name], report)
+		params[name], c = decodeWordsIn(plain[name], d)
 		cuts.Add(c)
 	}
 	for _, name := range pieceOrder {
@@ -176,8 +176,8 @@ func Params(raw []byte, report CharsetFunc) (string, map[string]string, Cuts) {
 			}
 		}
 		text, res := charset.Decode(label, raw)
-		if (!res.Known || res.Replaced) && report != nil {
-			report(charset.Normalize(label), res)
+		if !res.Known || res.Replaced || res.Detected != "" {
+			d.report(charset.Normalize(label), res)
 		}
 		// The RFC 2231 form wins over a plain parameter of the same name,
 		// as it is the one written for programs that read it.
@@ -209,17 +209,17 @@ func Token(s string) bool {
 }
 
 // DecodeRaw returns header bytes as UTF-8 without decoding encoded words.
-func DecodeRaw(raw []byte, report CharsetFunc) string {
-	s, res := charset.Decode("", raw)
-	if res.Replaced && report != nil {
-		report("", res)
+func DecodeRaw(raw []byte, d *Decoding) string {
+	s, res := d.undeclared(raw)
+	if res.Replaced || res.Detected != "" {
+		d.report("", res)
 	}
 	return s
 }
 
-func decodeWordsIn(v string, report CharsetFunc) (string, Cuts) {
+func decodeWordsIn(v string, d *Decoding) (string, Cuts) {
 	if strings.Contains(v, "=?") {
-		return DecodeText([]byte(v), report)
+		return DecodeText([]byte(v), d)
 	}
 	return v, Cuts{}
 }

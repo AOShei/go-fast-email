@@ -7,11 +7,35 @@ import (
 	"github.com/AOShei/go-fast-email/internal/charset"
 )
 
-// CharsetFunc is told of every decoding that did not go cleanly: a
-// character set this package does not know, or bytes that are not valid
-// in the one declared. An empty label stands for bytes outside ASCII in a
-// header that declares no character set.
+// CharsetFunc is told of every decoding that did not go cleanly, or was
+// decided from the bytes: a character set this package does not know,
+// bytes that are not valid in the one declared, or bytes outside ASCII in
+// a header that declares no character set (an empty label), read in the
+// set recognised (res.Detected) or not (res.Undetermined).
 type CharsetFunc func(label string, res charset.Result)
+
+// Decoding is how header text is decoded: the character set of text that
+// declares none (Extractor.Charset; empty for none), and who is told of
+// what decoding found. A nil *Decoding is no default and no report.
+type Decoding struct {
+	Default string
+	Report  CharsetFunc
+}
+
+func (d *Decoding) report(label string, res charset.Result) {
+	if d != nil && d.Report != nil {
+		d.Report(label, res)
+	}
+}
+
+// undeclared decodes text that declares no character set.
+func (d *Decoding) undeclared(raw []byte) (string, charset.Result) {
+	def := ""
+	if d != nil {
+		def = d.Default
+	}
+	return charset.DecodeDefault("", def, raw)
+}
 
 // DecodeText returns a header value as text: its bytes as UTF-8, with the
 // encoded words of RFC 2047 decoded, and the whitespace between two
@@ -20,17 +44,15 @@ type CharsetFunc func(label string, res charset.Result)
 // not valid UTF-8 they become U+FFFD and report is told. Encoded words
 // that a bound of this package keeps from being decoded are left as
 // written and counted in the Cuts returned.
-func DecodeText(raw []byte, report CharsetFunc) (string, Cuts) {
+func DecodeText(raw []byte, d *Decoding) (string, Cuts) {
 	var cuts Cuts
 	var s string
 	if utf8.Valid(raw) {
 		s = string(raw)
 	} else {
 		var res charset.Result
-		s, res = charset.Decode("", raw)
-		if report != nil {
-			report("", res)
-		}
+		s, res = d.undeclared(raw)
+		d.report("", res)
 	}
 	if !strings.Contains(s, "=?") {
 		return s, cuts
@@ -53,7 +75,7 @@ func DecodeText(raw []byte, report CharsetFunc) (string, Cuts) {
 			break
 		}
 		at := off + i
-		w := encodedWord(s[i:], report, cleanFrom-at, cleanTo-at)
+		w := encodedWord(s[i:], d, cleanFrom-at, cleanTo-at)
 		if w.clean > 0 {
 			from, to := at+w.textAt, at+w.clean
 			if from >= cleanFrom && from <= cleanTo {
@@ -147,7 +169,7 @@ type word struct {
 // because of its form, cut says which. [from, to), offsets in s, is known
 // to hold no whitespace and no "?=" that begins before to-1; the search
 // for the end does not look there again.
-func encodedWord(s string, report CharsetFunc, from, to int) word {
+func encodedWord(s string, d *Decoding, from, to int) word {
 	body := s[2:]
 	q1 := strings.IndexByte(body, '?')
 	if q1 <= 0 || len(body) < q1+3 || body[q1+2] != '?' {
@@ -202,8 +224,8 @@ func encodedWord(s string, report CharsetFunc, from, to int) word {
 		raw = qword(text[:end])
 	}
 	out, res := charset.Decode(label, raw)
-	if (!res.Known || res.Replaced) && report != nil {
-		report(charset.Normalize(label), res)
+	if !res.Known || res.Replaced || res.Detected != "" {
+		d.report(charset.Normalize(label), res)
 	}
 	return word{text: out, rest: text[end+2:], ok: true}
 }

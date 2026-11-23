@@ -68,6 +68,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		maxBytes   = flags.Int64("max-decoded-bytes", 0, "bytes decoded from base64 and quoted-printable in a file (0: the default, 2 GiB; -1: no limit)")
 		maxText    = flags.Int64("max-text-bytes", 0, "bytes of text a document and the files embedded in it may hold (0: the default, 256 MiB; -1: no limit)")
 		maxMessage = flags.Int64("max-message-bytes", 0, "bytes of one message held in memory (0: the default, 256 MiB; -1: no limit)")
+		cs         = flags.String("charset", "", "the character set of text that declares none and is not UTF-8 (shift_jis, gbk, windows-1251), instead of the one recognised from its bytes; also for HTML, text and CSV attachments whose set go-fast-html cannot determine")
 		quiet      = flags.Bool("quiet", false, "say nothing about files that were read; failures are still reported")
 		version    = flags.Bool("version", false, "print the version and exit")
 	)
@@ -114,7 +115,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		opts.Parts = gofastcore.PartRange{First: a, Last: b}
 	}
-	extractor := &gofastemail.Extractor{MaxMessageBytes: *maxMessage}
+	extractor := &gofastemail.Extractor{MaxMessageBytes: *maxMessage, Charset: *cs}
 	opts.Child = dispatcher(extractor)
 
 	var inputs []string
@@ -239,21 +240,33 @@ func dispatcher(extractor *gofastemail.Extractor) gofastcore.ChildFunc {
 			// programs send files as octet-stream: the extension says.
 			t = byExtension[strings.ToLower(filepath.Ext(name))]
 		}
+		// text reads with go-fast-html. Where it cannot determine the
+		// set of text that declares none, the -charset given is used:
+		// not before, since a set given to go-fast-html overrides a
+		// <meta> declaration in the HTML.
+		text := func(h *gofasthtml.Extractor) (*gofastcore.Document, error) {
+			doc, err := h.Extract(ctx, r, size, o)
+			if errors.Is(err, gofasthtml.ErrEncodingUnknown) && h.Charset == "" && extractor.Charset != "" {
+				h.Charset = extractor.Charset
+				return h.Extract(ctx, r, size, o)
+			}
+			return doc, err
+		}
 		switch t {
 		case "message/rfc822", "message/global", "application/vnd.ms-outlook":
 			return extractor.Extract(ctx, r, size, o)
 		case "text/html", "application/xhtml+xml":
-			return (&gofasthtml.Extractor{Format: "html", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
+			return text(&gofasthtml.Extractor{Format: "html", Charset: charsetOf(mimeType)})
 		case "text/markdown":
-			return (&gofasthtml.Extractor{Format: "md", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
+			return text(&gofasthtml.Extractor{Format: "md", Charset: charsetOf(mimeType)})
 		case "text/plain":
-			return (&gofasthtml.Extractor{Format: "txt", Charset: charsetOf(mimeType)}).Extract(ctx, r, size, o)
+			return text(&gofasthtml.Extractor{Format: "txt", Charset: charsetOf(mimeType)})
 		case "text/csv", "text/tab-separated-values":
 			format := "csv"
 			if t == "text/tab-separated-values" {
 				format = "tsv"
 			}
-			return (&gofasthtml.Extractor{Format: format, Charset: charsetOf(mimeType), Header: headerPresent(mimeType)}).Extract(ctx, r, size, o)
+			return text(&gofasthtml.Extractor{Format: format, Charset: charsetOf(mimeType), Header: headerPresent(mimeType)})
 		case "application/x-ipynb+json":
 			return (&gofasthtml.Extractor{Format: "ipynb"}).Extract(ctx, r, size, o)
 		case "application/epub+zip":

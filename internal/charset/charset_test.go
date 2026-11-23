@@ -13,8 +13,9 @@ func TestDecode(t *testing.T) {
 		{"utf-8", "caf\xc3\xa9", "café", true, false},
 		{"UTF-8", "bad\xff", "bad�", true, true},
 		{"", "plain", "plain", true, false},
-		{"us-ascii", "caf\xc3\xa9", "café", true, false}, // valid UTF-8 mislabelled
-		{"us-ascii", "caf\xe9", "caf�", true, true},
+		{"us-ascii", "caf\xc3\xa9", "café", true, false},       // valid UTF-8 mislabelled
+		{"us-ascii", "caf\xe9", "café", true, false},           // recognised as windows-1252
+		{"", "\xe9\xe8\xe9\xe8\xe9\xe8", "\uFFFD", true, true}, // no set is certain: one U+FFFD for the run
 		{"ISO-8859-1", "caf\xe9 \x80 \x93x\x94", "café € “x”", true, false},
 		{"\"windows-1252\"", "\x81", "�", true, true},
 		{"iso-8859-15", "\xa4\xbd\xe9", "€œé", true, false},

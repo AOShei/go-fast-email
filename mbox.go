@@ -85,7 +85,7 @@ func (r *reader) mbox(src io.ReaderAt, size int64) (*gofastcore.Document, error)
 
 // mboxMessage reads one message of a mailbox into a part.
 func (r *reader) mboxMessage(src io.ReaderAt, s span, number int) gofastcore.Part {
-	m := &message{}
+	m := &message{def: r.e.Charset}
 	n := s.end - s.start
 	if limit := r.e.maxMessage(); n > limit {
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("message of %d bytes read to %d", n, limit))

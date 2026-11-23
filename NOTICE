@@ -96,3 +96,11 @@ Compound file reader (internal/cfb)
   Copied from go-fast-ooxml (github.com/AOShei/go-fast-ooxml, internal/cfb),
   by the same author and under the same MIT License, with a function added
   to list the entries of a storage other than the root.
+
+internal/charset/detect.go, common.go, gen/gen_common.py,
+testdata/detect, gen/gen_detect.py
+  Copied from go-fast-html v0.3.0 (same author and licence). common.go is
+  generated from the Unicode Consortium's Unihan database (kHanyuPinlu,
+  kTraditionalVariant), Copyright (c) 1991-2026 Unicode, Inc., Unicode
+  License V3, whose text is in LICENSE-UNICODE. The texts of
+  testdata/detect were written for these tests.

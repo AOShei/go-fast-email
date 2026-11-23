@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	gofasthtml "github.com/AOShei/go-fast-html"
 	"os"
 	"path/filepath"
 	"strings"
@@ -327,5 +328,37 @@ func TestDispatcherNewTypes(t *testing.T) {
 	}
 	if got := headerPresent("text/csv; header=absent"); got {
 		t.Error("header=absent")
+	}
+}
+
+// TestDispatcherCharset: an HTML or text attachment that declares no set
+// and whose set go-fast-html cannot determine is refused with
+// ErrEncodingUnknown; with -charset (Extractor.Charset) it is read in it.
+// A set the attachment declares is not overridden.
+func TestDispatcherCharset(t *testing.T) {
+	czech, err := os.ReadFile("../../internal/charset/testdata/detect/cs.cp1250")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := "<p>" + string(czech[:600]) + "</p>"
+	_, err = dispatcher(&gofastemail.Extractor{})(context.Background(), "a.html", "text/html", strings.NewReader(page), int64(len(page)), &gofastcore.Options{})
+	if !errors.Is(err, gofasthtml.ErrEncodingUnknown) {
+		t.Fatalf("without -charset: %v", err)
+	}
+	doc, err := dispatcher(&gofastemail.Extractor{Charset: "windows-1250"})(context.Background(), "a.html", "text/html", strings.NewReader(page), int64(len(page)), &gofastcore.Options{})
+	if err != nil {
+		t.Fatalf("with -charset: %v", err)
+	}
+	if !strings.Contains(doc.Text(), "pokrývá přibližně") {
+		t.Fatalf("with -charset: %.100q", doc.Text())
+	}
+	// Declared: the attachment's own set wins.
+	doc, err = dispatcher(&gofastemail.Extractor{Charset: "windows-1250"})(context.Background(), "a.html", "text/html; charset=windows-1252",
+		strings.NewReader("<p>caf\xe9"), 7, &gofastcore.Options{})
+	if err != nil {
+		t.Fatalf("declared: %v", err)
+	}
+	if !strings.Contains(doc.Text(), "café") {
+		t.Fatalf("declared: %q", doc.Text())
 	}
 }

@@ -11,6 +11,11 @@
 // warning that names the set.
 // Decoding a multi-byte set as a single-byte one would produce text that
 // looks like text and is not.
+//
+// Text that declares no character set, or US-ASCII, and is not UTF-8 is
+// read in the set its bytes are recognised as where one is certain
+// (Detect, detect.go), and otherwise has its bytes outside ASCII as
+// U+FFFD, as before.
 package charset
 
 import (
@@ -27,6 +32,14 @@ type Result struct {
 	// Replaced is true when some bytes could not be decoded and were
 	// replaced with U+FFFD.
 	Replaced bool
+	// Detected is the label of the character set the text was read in,
+	// recognised from its bytes, when it declared none (or US-ASCII) and
+	// is not UTF-8; "" otherwise.
+	Detected string
+	// Undetermined is true when the text declared no character set (or
+	// US-ASCII), is not UTF-8, and no set is certain: its bytes outside
+	// ASCII are U+FFFD.
+	Undetermined bool
 }
 
 // Normalize returns the lowercase name of a charset label, without
@@ -136,13 +149,27 @@ func Decode(label string, b []byte) (string, Result) {
 	}
 	k := labels[Normalize(label)]
 	switch k {
-	case kindUTF8, kindASCII:
+	case kindASCII:
 		// Text labelled US-ASCII, or not labelled, that is valid UTF-8 is
-		// taken as UTF-8: mail programs write it so.
+		// taken as UTF-8: mail programs write it so. Otherwise the set is
+		// recognised from the bytes where one is certain.
+		if !unmarkedUTF16(b) && utf8.Valid(b) {
+			return string(b), Result{Known: true}
+		}
+		if set, ok := Detect(b); ok {
+			s, res := Decode(set, b)
+			res.Detected = set
+			return s, res
+		}
+		if utf8.Valid(b) {
+			return string(b), Result{Known: true} // zero bytes, not UTF-16
+		}
+		return strings.ToValidUTF8(string(b), "\uFFFD"), Result{Known: true, Replaced: true, Undetermined: true}
+	case kindUTF8:
 		if utf8.Valid(b) {
 			return string(b), Result{Known: true}
 		}
-		return strings.ToValidUTF8(string(b), "�"), Result{Known: true, Replaced: true}
+		return strings.ToValidUTF8(string(b), "\uFFFD"), Result{Known: true, Replaced: true}
 	case kindCP1252, kindLatin9:
 		return singleByte(b, k), Result{Known: true, Replaced: k == kindCP1252 && hasUndefined1252(b)}
 	case kindUTF16LE, kindUTF16BE, kindUTF16:
@@ -160,6 +187,17 @@ func Decode(label string, b []byte) (string, Result) {
 		}
 	}
 	return sb.String(), Result{Known: false, Replaced: replaced}
+}
+
+// DecodeDefault is Decode, but text that declares no character set or
+// US-ASCII (label) and is not UTF-8 is read in def, when def is not empty,
+// instead of in the set recognised from its bytes. Valid UTF-8 stays
+// UTF-8, as in Decode.
+func DecodeDefault(label, def string, b []byte) (string, Result) {
+	if def != "" && labels[Normalize(label)] == kindASCII && (unmarkedUTF16(b) || !utf8.Valid(b)) {
+		return Decode(def, b)
+	}
+	return Decode(label, b)
 }
 
 // DecodeUTF16 decodes UTF-16 in the byte order a byte order mark gives, or

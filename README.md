@@ -6,7 +6,7 @@ the shared go-fast document model,
 The library uses the standard library and go-fast-core only; its command
 also uses go-fast-html and go-fast-rtf.
 
-**Status: v0.1.4 (2026-11-22).** How it was built is in
+**Status: v0.2.0 (2026-11-23).** How it was built is in
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) (development history);
 the changes are in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -81,7 +81,12 @@ The `charset` parameter the message gives a text part (from its
 `Extractor.Charset`, the transport-layer encoding: it wins over a
 `<meta>` declaration and loses only to a byte order mark. It applies to
 HTML, Markdown, plain text, CSV and TSV; a notebook is JSON, in UTF-8,
-and an EPUB's chapters declare their own.
+and an EPUB's chapters declare their own. An attachment that declares no
+set is left to go-fast-html, which reads a `<meta>` declaration and
+otherwise recognises the set from the bytes where one is certain; where it
+cannot (`gofasthtml.ErrEncodingUnknown`), the command's `-charset`, if
+given, is used, and otherwise the attachment is listed with
+`child.unsupported` and a message that says to give it.
 
 An attachment declared `application/octet-stream`, or with no type (as
 Outlook keeps many), is read by the extension of its name: `.eml`,
@@ -108,6 +113,7 @@ status is 1 if an input could not be read, 2 for a usage error.
 | `-format` | `json` (the default), `markdown` or `text` |
 | `-o file` | write to the file instead of standard output |
 | `-parts n`, `-parts a-b` | read only these messages, by number (a mailbox's messages count from 1) |
+| `-charset` | sets `Extractor.Charset`: the character set of text that declares none and is not UTF-8, used instead of the one recognised from its bytes; also for an HTML, text or CSV attachment whose set go-fast-html cannot determine |
 | `-password` | sets `Options.Password`, which reaches every extractor the command runs, those of embedded documents included; none of the formats the command reads (this library, go-fast-html, go-fast-rtf) uses it today |
 | `-max-message-bytes` | `Extractor.MaxMessageBytes`: bytes of one message held in memory (0: the default, 256 MiB; -1: no limit) |
 | `-max-decoded-bytes` | `Limits.MaxDecodedBytes`: bytes decoded in a file and its embedded documents (0: the default, 2 GiB; -1: no limit) |
@@ -222,10 +228,29 @@ windows-1252, windows-1254 and windows-874, as the WHATWG Encoding
 Standard does. KOI8-R, KOI8-U and the other ISO-8859 parts (2, 3, 4, 5, 6,
 7, 8, 10, 13, 14, 16) are not decoded yet: no table verified against its
 mapping file was at hand. Text labelled US-ASCII, or not labelled, that is
-valid UTF-8 is read as UTF-8. Every other character set is not guessed at:
-bytes outside ASCII become U+FFFD and the part has a `text.unmapped_glyphs`
-warning that names the set (none when the text is all ASCII, since then
-nothing is lost). The tables' sources are in [`NOTICE`](NOTICE).
+valid UTF-8 is read as UTF-8. A character set this library does not
+decode is not guessed at: bytes outside ASCII become U+FFFD and the part
+has a `text.unmapped_glyphs` warning that names the set (none when the
+text is all ASCII, since then nothing is lost). The tables' sources are in
+[`NOTICE`](NOTICE).
+
+**Text that declares no character set** (a body with no `charset`, header
+text outside encoded words, an Outlook string with no code page), or
+declares US-ASCII, and is not valid UTF-8 is read in the set its bytes are
+**certainly** in, with the warning `text.encoding_detected` naming it:
+UTF-8 with damaged bytes, UTF-16 without a byte order mark, Shift_JIS,
+EUC-KR, GBK, Big5, windows-1251, or windows-1252 for text whose accented
+letters stand alone in words and show nothing of another Latin code page.
+The tests, their thresholds, and how they were measured are go-fast-html's
+(its README, "Text that declares no encoding"; this library has a copy of
+the code, since libraries do not import each other): on Wikipedia text in
+30 languages, no input of 1 KiB or more read in a wrong set. Where no set
+is certain, the bytes outside ASCII are U+FFFD, as before, and
+`text.unmapped_glyphs` says to give the set. `Extractor.Charset` (command:
+`-charset`) gives the set of such text instead of the one recognised from
+its bytes; valid UTF-8 stays UTF-8, and a set the text declares wins. The
+test reads at most 32 KiB of the text, so its time is bounded: 2 to 9 µs
+on 1.5 KiB.
 
 The double-byte code pages are decoded from their generated tables in
 `internal/charset/tables` (see the `README.txt` there): Shift_JIS (code
@@ -305,7 +330,8 @@ many items is reported once per message, with their number.
 |---|---|
 | `email.alternatives` (warning) | The message has alternative bodies |
 | `email.unknown_transfer_encoding` (warning) | A part declares a transfer encoding other than base64, quoted-printable, 7bit, 8bit or binary; its bytes are taken as they are |
-| `text.unmapped_glyphs` | A character set not decoded, or bytes not valid in the one declared |
+| `text.unmapped_glyphs` | A character set not decoded, bytes not valid in the one declared, or bytes outside ASCII in text that declares no set and whose set is not certain |
+| `text.encoding_detected` | Text that declares no character set (or US-ASCII) and is not UTF-8 was read in the set recognised from its bytes, which the message names; one warning per message, listing the sets when there are several |
 | `text.control_characters_removed` | Control characters with no meaning as text were removed from the message (info): from its body (text/plain, an Outlook body, stored text) and header values (subject, names and addresses as shown, image descriptions), after decoding. Tab and line ends are not counted; file names, message ids and the `From ` line of a mailbox are names, not text, and are not counted. The message gives the count. Terminal colour codes in build logs are the usual source: their ESC is removed |
 | `input.repaired` | A header section ended by a line that is not a header; a multipart body without closing boundary or without any boundary; base64 with characters outside its alphabet; an unreadable compressed RTF body; a damaged TNEF stream (cut short, a wrong checksum, an unreadable property list); an Outlook compound file whose short streams cannot be read (the properties in them are missing; severity error) |
 | `input.external_reference` | An Outlook attachment by reference names a file outside the message; a `message/external-body` part names content elsewhere (its URL or file is in the message; nothing is fetched) |

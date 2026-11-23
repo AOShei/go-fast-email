@@ -223,8 +223,8 @@ func (p *props) str(id uint16) string {
 		if p.alt != "" && !utf8.Valid(b) {
 			label = p.alt
 		}
-		s, res := charset.Decode(label, b)
-		if !res.Known || res.Replaced {
+		s, res := charset.DecodeDefault(label, p.m.def, b)
+		if !res.Known || res.Replaced || res.Detected != "" {
 			p.m.charsetReport()(label, res)
 		}
 		return s
@@ -395,7 +395,7 @@ func storages(f *cfb.File, prefix []string, begin string) ([]string, bool) {
 // outlook reads the message whose storage is prefix (the root if empty)
 // into one part of r.doc.
 func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
-	m := &message{inline: true}
+	m := &message{inline: true, def: r.e.Charset}
 	m.part.Kind, m.part.Number = gofastcore.PartMessage, 1
 	p := r.readProps(m, f, prefix, headerSize)
 	if cp, ok := p.int32(pidMessageCodepage); ok {
@@ -485,7 +485,7 @@ func (r *reader) outlook(f *cfb.File, prefix []string, headerSize int) {
 		extra = joinFields(extra, len(fields), func(yield func(k, v string)) {
 			for _, fl := range fields {
 				k := strings.ToLower(clean.Line(fl.Name))
-				d, c := rfc822.DecodeText(fl.Value, m.charsetReport())
+				d, c := rfc822.DecodeText(fl.Value, m.decoding())
 				m.cuts(c)
 				v := line(d)
 				if k == "" {
