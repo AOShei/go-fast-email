@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Faster
+
+- **Fewer allocations.** A message that begins with a mailbox `From `
+  line (as mail exported from a list archive does) no longer takes a
+  64 KiB read buffer, nor a mailbox a new one after each message, and the
+  values of a header section are copied into one buffer instead of one
+  each. On 7,551 messages, 948 MB allocated becomes 670 MB (with the
+  reading of the files),
+  and with 24 workers the batch takes 0.38 s instead of 0.48 s. Output
+  is byte-identical on those messages and the corpus's; a test checks
+  that header values sharing a buffer cannot overwrite each other.
+- **`GOGC` documented** (README): mail makes a small heap, so Go's
+  collector runs very often; `GOGC=200` reads the batch with 24 workers
+  in 0.15 s for a peak of 65 MB (32 MB at the default). The choice of
+  memory for speed is the user's.
+
 ## v0.2.0 (2026-11-23)
 
 The character set of text that declares none is recognised where it is

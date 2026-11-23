@@ -66,6 +66,21 @@ func ParseHeader(msg []byte, maxBytes int) (Header, int, Problems) {
 	if bytes.HasPrefix(msg, []byte("From ")) {
 		pos = lineEnd(msg, 0)
 	}
+	// The values are copied into one buffer, in order, each capped at
+	// its length (so that an append to one cannot run into the next); a
+	// continuation line extends the last value, at the buffer's end.
+	// Its capacity is that of the section, to its first blank line, at
+	// most 64 KiB to begin with; it grows past that as append does.
+	n := limit - pos
+	for _, end := range [][]byte{[]byte("\n\n"), []byte("\n\r\n")} {
+		if i := bytes.Index(msg[pos:limit], end); i >= 0 && i < n {
+			n = i + 1
+		}
+	}
+	buf := make([]byte, 0, min(n, 64<<10))
+	// A field a line at most: as many lines as the section has.
+	h = make(Header, 0, min(bytes.Count(msg[pos:pos+min(n, 64<<10)], []byte("\n"))+1, MaxFields))
+	start := 0 // where the last value begins in buf
 	for pos < limit {
 		end := lineEnd(msg, pos)
 		line := trimEOL(msg[pos:end])
@@ -77,7 +92,8 @@ func ParseHeader(msg []byte, maxBytes int) (Header, int, Problems) {
 			// removed and the whitespace kept (RFC 5322, 2.2.3).
 			if !p.TooMany {
 				last := &h[len(h)-1]
-				last.Value = append(last.Value, line...)
+				buf = append(buf, line...)
+				last.Value = buf[start:len(buf):len(buf)]
 			}
 			pos = end
 			continue
@@ -96,7 +112,9 @@ func ParseHeader(msg []byte, maxBytes int) (Header, int, Problems) {
 			p.TooMany = true
 		} else {
 			value := bytes.TrimLeft(line[colon+1:], " \t")
-			h = append(h, Field{Name: string(bytes.TrimRight(line[:colon], " \t")), Value: append([]byte(nil), value...)})
+			start = len(buf)
+			buf = append(buf, value...)
+			h = append(h, Field{Name: string(bytes.TrimRight(line[:colon], " \t")), Value: buf[start:len(buf):len(buf)]})
 		}
 		pos = end
 	}
