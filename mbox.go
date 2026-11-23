@@ -137,12 +137,17 @@ func unquote(b []byte) []byte {
 // order, until it returns false. It reads the file a line at a time, and
 // holds no more than a buffer and one header section.
 func scanMbox(src io.ReaderAt, size int64, maxHeader int, emit func(span) bool) error {
+	// One buffer for the whole scan, no larger than the file: a file of
+	// one message of a few KB (an .eml saved with its "From " line) does
+	// not take 64 KiB, nor a mailbox a new buffer after every counted
+	// message.
 	const bufSize = 64 << 10
 	var off int64
+	br := bufio.NewReaderSize(io.NewSectionReader(src, 0, size), int(min(max(size, 16), bufSize)))
 	newReader := func(at int64) *bufio.Reader {
-		return bufio.NewReaderSize(io.NewSectionReader(src, at, size-at), bufSize)
+		br.Reset(io.NewSectionReader(src, at, size-at))
+		return br
 	}
-	br := newReader(0)
 	prevBlank, atLineStart := true, true
 	var cur *span
 	for off < size {

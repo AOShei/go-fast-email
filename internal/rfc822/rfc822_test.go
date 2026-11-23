@@ -203,3 +203,27 @@ func TestSplit(t *testing.T) {
 		t.Fatalf("unclosed: %+v", m)
 	}
 }
+
+// TestHeaderValuesApart: the values share one buffer, so an append to
+// one, folded or not, must not change the next.
+func TestHeaderValuesApart(t *testing.T) {
+	for _, msg := range []string{
+		"A: one\r\nB: two\r\n folded\r\nC: three\r\n\r\nbody",
+		"A: one\nB: two\n\tfolded\nC: three\n\nbody",
+		"From x\nA: one\nB: two", // no blank line
+	} {
+		h, _, _ := ParseHeader([]byte(msg), 0)
+		want := make([]string, len(h))
+		for i, f := range h {
+			want[i] = string(f.Value)
+		}
+		for i := range h {
+			_ = append(h[i].Value, "XXXXXXXXXXXXXXXX"...)
+		}
+		for i, f := range h {
+			if string(f.Value) != want[i] {
+				t.Errorf("%q: field %d is %q after an append to the others, want %q", msg, i, f.Value, want[i])
+			}
+		}
+	}
+}
