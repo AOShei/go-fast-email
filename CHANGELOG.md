@@ -1,10 +1,27 @@
 # Changelog
 
-## v0.1.4 (2026-11-22)
+## v0.2.0 (2026-11-23)
 
-Control characters removed from a message are reported, and the command
-reads more attachments.
+The character set of text that declares none is recognised where it is
+certain; control characters removed are reported; the command reads more
+attachments, with go-fast-html v0.3.0 and go-fast-rtf v0.2.0. (An earlier
+version of this file dated these changes v0.1.4; no such version was
+tagged.)
 
+- **Text that declares no character set** (a body with no `charset`,
+  header text outside encoded words, an Outlook string with no code
+  page), or declares US-ASCII, and is not valid UTF-8 was read with its
+  bytes outside ASCII as U+FFFD. It is now read in the set its bytes are
+  certainly in (Shift_JIS, EUC-KR, GBK, Big5, windows-1251, windows-1252,
+  UTF-16 without a byte order mark, or UTF-8 with damaged bytes), with the
+  warning `text.encoding_detected` (go-fast-core v0.1.2); where no set is
+  certain, as before, with `text.unmapped_glyphs` saying how to give it.
+  The detection is go-fast-html v0.3.0's, copied.
+- **`Extractor.Charset`** (command: `-charset`): the set of such text,
+  used instead of the one recognised. The command also reads with it an
+  HTML, text or CSV attachment whose set go-fast-html cannot determine
+  (`gofasthtml.ErrEncodingUnknown`), which is otherwise listed with
+  `child.unsupported`.
 - **`text.control_characters_removed`** (info; go-fast-core v0.1.2).
   Control characters with no meaning as text were removed from bodies and
   header values silently; the message's part now carries the warning with
@@ -13,9 +30,10 @@ reads more attachments.
   logs mailed by CI: in the public corpus, a mailing-list archive has
   messages with hundreds of ESC characters. Requires go-fast-core v0.1.2.
 
-- **go-fast-html v0.2.0** (was v0.1.1) and **go-fast-rtf v0.1.2** (was
-  v0.1.1). Their output-cuts and warning-cap changes reach the documents
-  of bodies and attachments they read.
+- **go-fast-html v0.3.0** (was v0.1.1) and **go-fast-rtf v0.2.0** (was
+  v0.1.1) in the command. Their output-cuts, warning-cap and shared-code
+  changes, and go-fast-html's encoding detection, reach the documents of
+  bodies and attachments they read.
 - **New attachment types** read by go-fast-html: `text/csv` and
   `text/tab-separated-values` (a `header=present` parameter gives the
   first row as a header row), `application/x-ipynb+json` (Jupyter

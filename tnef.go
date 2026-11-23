@@ -63,7 +63,7 @@ func (e *Extractor) tnefDocument(ctx context.Context, data []byte, opts *gofastc
 	r.doc = gofastcore.New("tnef")
 	r.doc.Source = gofastcore.Source{Format: "tnef", Name: opts.Name, MIME: "application/ms-tnef", Size: int64(len(data))}
 
-	m := &message{inline: true}
+	m := &message{inline: true, def: r.e.Charset}
 	m.part.Kind, m.part.Number = gofastcore.PartMessage, 1
 	if t.Damaged {
 		m.warn(gofastcore.SeverityWarning, gofastcore.WarnInputRepaired, "the TNEF stream is damaged (cut short, a checksum that does not match, or properties that cannot be read); it is read as far as it goes")
@@ -101,7 +101,7 @@ func (e *Extractor) tnefDocument(ctx context.Context, data []byte, opts *gofastc
 		if _, ok := ap.values[uint32(pidAttachData)<<16|ptBinary]; !ok && a.Data != nil {
 			ap.values[uint32(pidAttachData)<<16|ptBinary] = a.Data
 		}
-		title, _ := charset.Decode(p.label, []byte(a.Title))
+		title, _ := charset.DecodeDefault(p.label, m.def, []byte(a.Title))
 		r.outlookAttachment(m, ap, title, func(file string, listed bool) {
 			// An attached message: an object whose data, after the
 			// 16 bytes of its interface id, is a TNEF stream.

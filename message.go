@@ -86,6 +86,12 @@ type message struct {
 	order    []*group               // groups in the order of their warnings
 	inline   bool                   // a single message: its headers go to the metadata
 	controls int                    // control characters removed from its text
+	def      string                 // Extractor.Charset: the set of text that declares none
+}
+
+// decoding is how the message's header text is decoded.
+func (m *message) decoding() *rfc822.Decoding {
+	return &rfc822.Decoding{Default: m.def, Report: m.charsetReport()}
 }
 
 // text is clean.Text for text that is output: it counts the control
@@ -263,7 +269,21 @@ func things(n int, noun string) string {
 
 func (m *message) charsetReport() rfc822.CharsetFunc {
 	return func(label string, res charset.Result) {
+		if res.Detected != "" {
+			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnTextEncodingDetected, "detected", res.Detected, res.Detected,
+				fmt.Sprintf("text that declares no character set and is not UTF-8 was read as %s, recognised from its bytes; if that is wrong, give the set with Extractor.Charset (command: -charset)", res.Detected), false,
+				func(count, list string) string {
+					return fmt.Sprintf("text that declares no character set and is not UTF-8 was read in %s sets recognised from its bytes (%s); if that is wrong, give the set with Extractor.Charset (command: -charset)", count, list)
+				})
+			if res.Replaced {
+				m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "bytes not valid in text recognised as "+res.Detected)
+			}
+			return
+		}
 		switch {
+		case res.Undetermined:
+			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs,
+				"bytes outside ASCII in text that declares no character set are U+FFFD: the text is not UTF-8 and no character set is certain from its bytes; give the set with Extractor.Charset (command: -charset)")
 		case label == "" && res.Replaced:
 			m.warn(gofastcore.SeverityWarning, gofastcore.WarnTextUnmappedGlyphs, "bytes that are not UTF-8 in text that declares no character set")
 		case !res.Known && res.Replaced:
@@ -392,7 +412,7 @@ func (r *reader) eml(src io.ReaderAt, size int64) (*gofastcore.Document, error) 
 	}
 	r.doc = gofastcore.New("eml")
 	r.doc.Source = gofastcore.Source{Format: "eml", Name: r.opts.Name, MIME: "message/rfc822", Size: size}
-	m := &message{inline: true}
+	m := &message{inline: true, def: r.e.Charset}
 	if size > n {
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("message of %d bytes read to %d", size, n))
 	}
@@ -421,7 +441,7 @@ func (r *reader) message(m *message, raw []byte, number int, envelope string) {
 	m.part.Kind, m.part.Number = gofastcore.PartMessage, number
 	h, bodyAt, prob := rfc822.ParseHeader(raw, r.e.maxHeader())
 	r.headerProblems(m, prob)
-	report := m.charsetReport()
+	report := m.decoding()
 
 	// The header fields as text, in order.
 	type field struct{ key, name, value string }
@@ -628,7 +648,7 @@ func (r *reader) entity(m *message, h rfc822.Header, body []byte, depth int, alt
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("the message has more than %d MIME parts; the rest are not read", r.e.maxParts()))
 		return
 	}
-	report := m.charsetReport()
+	report := m.decoding()
 	mediatype, params := defaultType, map[string]string{}
 	if v, ok := h.Get("Content-Type"); ok {
 		t, p, c := rfc822.Params(v, report)
@@ -823,8 +843,8 @@ func (r *reader) textBody(m *message, params map[string]string, data []byte) {
 		return
 	}
 	label := params["charset"]
-	text, res := charset.Decode(label, data)
-	if !res.Known || res.Replaced {
+	text, res := charset.DecodeDefault(label, m.def, data)
+	if !res.Known || res.Replaced || res.Detected != "" {
 		if label == "" {
 			label = "us-ascii"
 		}
@@ -921,7 +941,7 @@ func (r *reader) stored(m *message, kind string, raw []byte) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return
 	}
-	text, _ := charset.Decode("", raw)
+	text, _ := charset.DecodeDefault("", m.def, raw)
 	text = strings.TrimSpace(m.text(text))
 	if text == "" {
 		return

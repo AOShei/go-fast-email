@@ -39,12 +39,12 @@ func TestDecodeText(t *testing.T) {
 		{"=?utf-8?x?abc?=", "=?utf-8?x?abc?="},
 		{"=?utf-8*en?q?x?=", "x"},
 	} {
-		if got, _ := DecodeText([]byte(c.in), report); got != c.want {
+		if got, _ := DecodeText([]byte(c.in), &Decoding{Report: report}); got != c.want {
 			t.Errorf("DecodeText(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 	reported = nil
-	if got, _ := DecodeText([]byte("=?koi8-r?q?=C1?="), report); got != "�" || len(reported) != 1 || reported[0] != "koi8-r" {
+	if got, _ := DecodeText([]byte("=?koi8-r?q?=C1?="), &Decoding{Report: report}); got != "�" || len(reported) != 1 || reported[0] != "koi8-r" {
 		t.Errorf("unknown charset: %q, reported %q", got, reported)
 	}
 }

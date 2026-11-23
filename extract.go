@@ -90,6 +90,16 @@ type Extractor struct {
 	MaxMIMEDepth int
 	// MaxMIMEParts bounds the MIME parts read from one message.
 	MaxMIMEParts int
+	// Charset is the character set of text that declares none (a body
+	// with no charset parameter, header text outside encoded words, an
+	// Outlook string with no code page) and is not valid UTF-8, given as a
+	// MIME charset label ("shift_jis", "windows-1251"). It is used instead
+	// of the set recognised from the bytes. Empty means none: such text is
+	// read in the set its bytes are certainly in, with the warning
+	// text.encoding_detected, and where none is certain its bytes outside
+	// ASCII are U+FFFD (text.unmapped_glyphs). Text labelled US-ASCII that
+	// is not ASCII counts as declaring none.
+	Charset string
 }
 
 var _ gofastcore.Extractor = (*Extractor)(nil)
