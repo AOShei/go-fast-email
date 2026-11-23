@@ -4,6 +4,12 @@
 
 ### Faster
 
+- **A message's header is read once.** A file was read once to see
+  whether it begins with a header field and again for the message; the
+  first reading now serves both. Extraction of 7,551 messages takes 5–6%
+  less CPU (0.283 to 0.267 s, the mean of six runs with the files in
+  memory); within the noise of the whole benchmark run.
+
 - **A message's memory is reused for the next.** The bytes of a message,
   the scratch of its header and the reader that finds the messages of a
   mailbox come from pools and go back when the message is read; the

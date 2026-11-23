@@ -409,7 +409,18 @@ func (r *reader) eml(src io.ReaderAt, size int64) (*gofastcore.Document, error) 
 		return nil, fmt.Errorf("gofastemail: reading: %v: %w", err, gofastcore.ErrMalformed)
 	}
 	raw = bytes.TrimPrefix(raw, []byte("\xEF\xBB\xBF"))
-	if !looksLikeMessage(raw) {
+	// The header is read once: for whether this is a message at all, and
+	// for the message. It is read until the message is.
+	s := getScratch()
+	defer putScratch(s)
+	h, bodyAt, prob := s.ParseHeader(raw, r.e.maxHeader())
+	looks := len(h) > 0 && s.First() < lookLimit
+	if len(h) == 0 && r.e.maxHeader() < lookLimit {
+		// The limit on the header is below the look's: the look may
+		// find a field this reading did not reach.
+		looks = looksLikeMessage(raw)
+	}
+	if !looks {
 		return nil, fmt.Errorf("gofastemail: not an email message: %w", gofastcore.ErrMalformed)
 	}
 	r.doc = gofastcore.New("eml")
@@ -418,7 +429,7 @@ func (r *reader) eml(src io.ReaderAt, size int64) (*gofastcore.Document, error) 
 	if size > n {
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("message of %d bytes read to %d", size, n))
 	}
-	r.message(m, raw, 1, "")
+	r.readMessage(m, raw, 1, "", h, bodyAt, prob)
 	if err := r.ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -431,23 +442,32 @@ func (r *reader) finish() *gofastcore.Document {
 	return r.doc
 }
 
+// lookLimit is how far into a file looksLikeMessage looks for a header
+// field.
+const lookLimit = 64 << 10
+
 // looksLikeMessage reports whether b begins with a header field.
 func looksLikeMessage(b []byte) bool {
 	s := getScratch()
 	defer putScratch(s)
-	h, _, p := s.ParseHeader(b, 64<<10)
-	return len(h) > 0 && !(p.Malformed && len(h) == 0)
+	h, _, _ := s.ParseHeader(b, lookLimit)
+	return len(h) > 0
 }
 
 // message reads one message into m.part. envelope is the "From " line of
 // a mailbox, without "From ".
 func (r *reader) message(m *message, raw []byte, number int, envelope string) {
-	m.part.Kind, m.part.Number = gofastcore.PartMessage, number
 	// The header is read until the message is: its values are made into
 	// strings where they are kept.
 	s := getScratch()
 	defer putScratch(s)
 	h, bodyAt, prob := s.ParseHeader(raw, r.e.maxHeader())
+	r.readMessage(m, raw, number, envelope, h, bodyAt, prob)
+}
+
+// readMessage reads one message, whose header has been read, into m.part.
+func (r *reader) readMessage(m *message, raw []byte, number int, envelope string, h rfc822.Header, bodyAt int, prob rfc822.Problems) {
+	m.part.Kind, m.part.Number = gofastcore.PartMessage, number
 	r.headerProblems(m, prob)
 	report := m.decoding()
 

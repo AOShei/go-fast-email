@@ -25,6 +25,21 @@ func FuzzHeader(f *testing.F) {
 		if !reflect.DeepEqual(sh, h) || sat != at || sp != p {
 			t.Fatalf("with a scratch %q %d %+v, without %q %d %+v", sh, sat, sp, h, at, p)
 		}
+		// Under any smaller limit there are fields exactly when the first
+		// field begins below it.
+		if len(sh) > 0 != (s.First() >= 0) {
+			t.Fatalf("%d fields, first at %d", len(sh), s.First())
+		}
+		first := s.First()
+		for _, limit := range []int{1, 7, 64, len(data) / 2, len(data), 4095} {
+			if limit > 4096 || limit <= 0 {
+				continue
+			}
+			small, _, _ := ParseHeader(data, limit)
+			if want := first >= 0 && first < limit; len(small) > 0 != want {
+				t.Fatalf("limit %d: %d fields, first at %d of the larger reading", limit, len(small), first)
+			}
+		}
 		for _, field := range h {
 			if s, _ := DecodeText(field.Value, nil); !utf8.ValidString(s) {
 				t.Fatalf("DecodeText gave invalid UTF-8 %q", s)

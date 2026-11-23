@@ -63,9 +63,17 @@ func ParseHeader(msg []byte, maxBytes int) (Header, int, Problems) {
 // A Scratch holds the memory ParseHeader uses, so that one header's can
 // be used again for the next. The zero value is ready to use.
 type Scratch struct {
-	buf []byte
-	h   Header
+	buf   []byte
+	h     Header
+	first int
 }
+
+// First is where, in the bytes the last ParseHeader of s read, the line of
+// the header's first field begins; -1 if it found none. A field is read
+// when its line begins before the limit, so a header read with a larger
+// limit holds the fields a smaller one would, and has one under a limit
+// exactly when First is below it.
+func (s *Scratch) First() int { return s.first }
 
 // ParseHeader is ParseHeader, with the memory of s. What it returns
 // refers to that memory: it may be used only until s parses again.
@@ -113,6 +121,7 @@ func parseHeader(msg []byte, maxBytes int, s *Scratch) (h Header, at int, p Prob
 	if s != nil {
 		// The scratch keeps what was made or grown, for the next header.
 		buf, h = slices.Grow(s.buf[:0], min(n, 64<<10)), slices.Grow(s.h[:0], fields)
+		s.first = -1
 		defer func() { s.buf, s.h = buf[:0], h[:0] }()
 	} else {
 		buf, h = make([]byte, 0, min(n, 64<<10)), make(Header, 0, fields)
@@ -149,6 +158,9 @@ func parseHeader(msg []byte, maxBytes int, s *Scratch) (h Header, at int, p Prob
 			p.TooMany = true
 		} else {
 			value := bytes.TrimLeft(line[colon+1:], " \t")
+			if len(h) == 0 && s != nil {
+				s.first = pos
+			}
 			start = len(buf)
 			buf = append(buf, value...)
 			h = append(h, Field{Name: string(bytes.TrimRight(line[:colon], " \t")), Value: buf[start:len(buf):len(buf)]})
