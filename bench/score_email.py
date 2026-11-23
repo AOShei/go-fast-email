@@ -26,7 +26,7 @@ for path in (l.strip() for l in open(LIST) if l.strip()):
         c = b.get_content()
     except Exception:
         continue
-    if "�" in c:
+    if "\ufffd" in c:
         continue  # the reference itself could not decode it
     w = words(c)
     if sum(w.values()) >= 5:
