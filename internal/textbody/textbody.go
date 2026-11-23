@@ -37,8 +37,9 @@ type line struct {
 	sig   bool // the signature separator
 }
 
-// Blocks returns the blocks of text, which uses "\n" for line breaks and
-// has no other control characters. take is called with the cost of each
+// Blocks appends the blocks of text to dst and returns the result. The
+// text uses "\n" for line breaks and has no other control characters.
+// take is called with the cost of each
 // block before it is added (gofastcore.BlockCost and the text); when it
 // returns false no more blocks are made, and Blocks reports that it was
 // cut short.
@@ -46,8 +47,8 @@ type line struct {
 // The text is read a line at a time: what is held beside it is the
 // paragraph being gathered and the blocks made, never a record per line,
 // since a body of nothing but line breaks costs a sender one byte a line.
-func Blocks(text string, o Options, take func(int) bool) ([]gofastcore.Block, bool) {
-	var blocks []gofastcore.Block
+func Blocks(dst []gofastcore.Block, text string, o Options, take func(int) bool) ([]gofastcore.Block, bool) {
+	blocks := dst
 	var para strings.Builder
 	depth, inSig := 0, false
 	flush := func() bool {
