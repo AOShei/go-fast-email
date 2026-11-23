@@ -1,0 +1,261 @@
+{
+ "versions": {
+  "mail-parser": "4.11.0",
+  "eml-parser": "4.7.1",
+  "kreuzberg": "4.10.4",
+  "striprtf": "0.0.35",
+  "odfpy": "1.4.1",
+  "pandas": "3.1.1",
+  "pandoc": "3.11",
+  "calamine (crate)": "0.31.0",
+  "mail-parser (crate)": "0.11.9",
+  "rtf-parser (crate)": "0.4.3"
+ },
+ "sets": {
+  "email": {
+   "files": 7551,
+   "one_worker": [
+    {
+     "tool": "rs-mail-parser",
+     "wall_s": 0.22636113001499325,
+     "cpu_s": 0.220444,
+     "peak_mb": 6.7109375,
+     "files": 7551,
+     "others_cpu_s": 0.0,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 0.011061,
+     "p95_ms": 0.060656,
+     "p99_ms": 0.133415,
+     "max_ms": 1.6338240000000002
+    },
+    {
+     "tool": "go-fast",
+     "wall_s": 0.4869932089932263,
+     "cpu_s": 0.670576,
+     "peak_mb": 22.39453125,
+     "files": 7551,
+     "others_cpu_s": 0.0,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 0.025279,
+     "p95_ms": 0.128285,
+     "p99_ms": 0.357955,
+     "max_ms": 15.688745
+    },
+    {
+     "tool": "mail-parser",
+     "wall_s": 4.907484700088389,
+     "cpu_s": 4.843285999999999,
+     "peak_mb": 35.1640625,
+     "files": 7551,
+     "others_cpu_s": 0.0,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 0.5697190063074231,
+     "p95_ms": 1.0357500286772847,
+     "p99_ms": 1.491772010922432,
+     "max_ms": 13.40432500001043
+    },
+    {
+     "tool": "stdlib-email",
+     "wall_s": 5.978052436024882,
+     "cpu_s": 5.921227999999999,
+     "peak_mb": 44.71484375,
+     "files": 7551,
+     "others_cpu_s": 0.0,
+     "disturbed": false,
+     "failed": 25,
+     "p50_ms": 0.5071200430393219,
+     "p95_ms": 1.0064439848065376,
+     "p99_ms": 1.8406989984214306,
+     "max_ms": 1191.9000789057463
+    },
+    {
+     "tool": "kreuzberg",
+     "wall_s": 6.233417624025606,
+     "cpu_s": 2.09719,
+     "peak_mb": 186.359375,
+     "files": 7551,
+     "others_cpu_s": 0.2642998031503634,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 0.09250699076801538,
+     "p95_ms": 0.5804590182378888,
+     "p99_ms": 1.812234055250883,
+     "max_ms": 4260.599826928228
+    },
+    {
+     "tool": "eml-parser",
+     "wall_s": 16.9446298989933,
+     "cpu_s": 16.8,
+     "peak_mb": 96.2578125,
+     "files": 7551,
+     "others_cpu_s": 0.0,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 1.4648509677499533,
+     "p95_ms": 5.903818062506616,
+     "p99_ms": 11.3494370598346,
+     "max_ms": 101.07838304247707
+    }
+   ],
+   "24_workers": [
+    {
+     "tool": "rs-mail-parser",
+     "wall_s": 0.06227331596892327,
+     "cpu_s": 0.8785430000000001,
+     "peak_mb": 15.3046875,
+     "files": 7551,
+     "others_cpu_s": 0.0,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 0.019407,
+     "p95_ms": 0.09199600000000001,
+     "p99_ms": 0.198219,
+     "max_ms": 3.367408
+    },
+    {
+     "tool": "kreuzberg",
+     "wall_s": 0.3443886670283973,
+     "cpu_s": 4.253119,
+     "peak_mb": 1831.26953125,
+     "files": 7551,
+     "others_cpu_s": 0.06441795899998828,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 0.13393606059253216,
+     "p95_ms": 1.0912460274994373,
+     "p99_ms": 6.390716996975243,
+     "max_ms": 123.21622692979872
+    },
+    {
+     "tool": "go-fast",
+     "wall_s": 0.4175237970193848,
+     "cpu_s": 2.4971590000000004,
+     "peak_mb": 33.45703125,
+     "files": 7551,
+     "others_cpu_s": 0.19606619407521217,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 0.610709,
+     "p95_ms": 3.3874310000000003,
+     "p99_ms": 5.480755,
+     "max_ms": 31.116782999999998
+    },
+    {
+     "tool": "mail-parser",
+     "wall_s": 0.4650976200355217,
+     "cpu_s": 8.570466,
+     "peak_mb": 664.19921875,
+     "files": 7551,
+     "others_cpu_s": 0.024217294848621812,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 0.9137470042333007,
+     "p95_ms": 1.7208789940923452,
+     "p99_ms": 2.741161035373807,
+     "max_ms": 23.065697983838618
+    },
+    {
+     "tool": "eml-parser",
+     "wall_s": 1.5392928689252585,
+     "cpu_s": 30.824648,
+     "peak_mb": 1522.16796875,
+     "files": 7551,
+     "others_cpu_s": 0.37634331964822715,
+     "disturbed": false,
+     "failed": 0,
+     "p50_ms": 2.4238339392468333,
+     "p95_ms": 11.206293944269419,
+     "p99_ms": 23.751899017952383,
+     "max_ms": 171.0935189621523
+    },
+    {
+     "tool": "stdlib-email",
+     "wall_s": 1.7512680859072134,
+     "cpu_s": 9.846575,
+     "peak_mb": 634.28125,
+     "files": 7551,
+     "others_cpu_s": 0.15834575359362768,
+     "disturbed": false,
+     "failed": 25,
+     "p50_ms": 0.8649840019643307,
+     "p95_ms": 2.2243920248001814,
+     "p99_ms": 5.026819999329746,
+     "max_ms": 1334.7958090016618
+    }
+   ],
+   "gogc": {
+    "100-1": {
+     "wall_s": 0.4869932089932263,
+     "peak_mb": 22.39453125
+    },
+    "100-24": {
+     "wall_s": 0.4175237970193848,
+     "peak_mb": 33.45703125
+    },
+    "200-1": {
+     "wall_s": 0.43345276010222733,
+     "peak_mb": 23.7265625
+    },
+    "200-24": {
+     "wall_s": 0.1588222780264914,
+     "peak_mb": 63.15625
+    },
+    "400-1": {
+     "wall_s": 0.41316188499331474,
+     "peak_mb": 33.40625
+    },
+    "400-24": {
+     "wall_s": 0.11596686602570117,
+     "peak_mb": 125.0625
+    }
+   },
+   "scores": {
+    "eml-parser": {
+     "files": 7551,
+     "failed": 0,
+     "empty": 0,
+     "plain_bodies": 6411,
+     "body_recall": 1.0
+    },
+    "go-fast": {
+     "files": 7551,
+     "failed": 0,
+     "empty": 0,
+     "plain_bodies": 6411,
+     "body_recall": 0.9999702082963453
+    },
+    "kreuzberg": {
+     "files": 7551,
+     "failed": 0,
+     "empty": 0,
+     "plain_bodies": 6411,
+     "body_recall": 0.9891908452510213
+    },
+    "mail-parser": {
+     "files": 7551,
+     "failed": 0,
+     "empty": 0,
+     "plain_bodies": 6411,
+     "body_recall": 0.9998148083286331
+    },
+    "rs-mail-parser": {
+     "files": 7551,
+     "failed": 0,
+     "empty": 0,
+     "plain_bodies": 6411,
+     "body_recall": 0.997380745621928
+    },
+    "stdlib-email": {
+     "files": 7551,
+     "failed": 25,
+     "empty": 0,
+     "plain_bodies": 6411,
+     "body_recall": 1.0
+    }
+   }
+  }
+ }
+}
