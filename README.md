@@ -10,9 +10,9 @@ also uses go-fast-html and go-fast-rtf.
 
 | `GOGC` | One worker | Peak | 24 workers | Peak |
 |---|---|---|---|---|
-| 100 (default) | 0.49 s | 22 MB | 0.42 s | 33 MB |
-| 200 | 0.43 s | 24 MB | 0.16 s | 63 MB |
-| 400 | 0.41 s | 33 MB | 0.12 s | 125 MB |
+| 100 (default) | 0.46 s | 20 MB | 0.25 s | 42 MB |
+| 200 | 0.41 s | 26 MB | 0.12 s | 130 MB |
+| 400 | 0.40 s | 39 MB | 0.09 s | 228 MB |
 
 **Status: v0.2.1 (2026-11-24).** How it was built is in
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) (development history);
