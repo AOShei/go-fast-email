@@ -12,19 +12,19 @@ The input is 7,551 messages, 56 MB:
 - two months of eight Apache mailing lists, as their archives export them;
 - the SpamAssassin public corpus (2002 to 2005), which brings HTML bodies, attachments and old character sets.
 
-The go-fast-email figures are for main after #21 (commit 6e85ee0); its output is byte-identical to v0.2.0's.
+The go-fast-email figures are for v0.2.1 (go-fast-core v0.1.4), measured on 2026-11-24; the other tools' are from 2026-11-23. Every message gives the same text, or the same error, as with v0.2.0.
 
-- **Speed with one worker.** go-fast-email reads every message in 0.49 s.
+- **Speed with one worker.** go-fast-email reads every message in 0.46 s.
   - The Rust `mail-parser` crate is faster (0.23 s).
-  - Every Python tool is 10 to 35 times slower: mail-parser 4.9 s, `email` 6.0 s, Kreuzberg 6.2 s, eml-parser 16.9 s.
+  - Every Python tool is 11 to 37 times slower: mail-parser 4.9 s, `email` 6.0 s, Kreuzberg 6.2 s, eml-parser 16.9 s.
   - Kreuzberg's own CPU time was 2.1 s, but it waits inside some calls: one message took 4.3 s.
 - **Speed with 24 workers.**
-  - go-fast-email takes 0.42 s at Go's default `GOGC`.
-  - The Rust crate takes 0.06 s, Kreuzberg 0.34 s and Python mail-parser 0.47 s.
-  - Messages are small, so the heap stays a few MB and Go's garbage collector runs almost 500 times in the batch. With 24 workers its pauses, not the reading, take most of the time.
-  - With `GOGC=200` the batch takes 0.16 s with 63 MB at peak, instead of 33 MB. The table is below and in the library's README.
+  - go-fast-email takes 0.28 s at Go's default `GOGC` (0.25 s in the `GOGC` run below), ahead of Kreuzberg (0.34 s) and Python mail-parser (0.47 s).
+  - The Rust crate takes 0.06 s.
+  - Messages are small, so the heap stays a few MB and Go's garbage collector runs often. With 24 workers its pauses, not the reading, take most of the time.
+  - With `GOGC=200` the batch takes 0.12 s with 130 MB at peak, instead of 42 MB. The table is below and in the library's README.
   - The library keeps Go's default: trading memory for speed is the caller's choice.
-- **Memory.** go-fast-email peaks at 22 MB with one worker and 33 MB with 24. Over 24 workers the Python tools use 0.6 to 1.8 GB.
+- **Memory.** go-fast-email peaks at 23 MB with one worker and 44 MB with 24. Over 24 workers the Python tools use 0.6 to 1.8 GB.
 - **Accuracy.** The test set is the 6,411 messages whose preferred body is plain text that Python's `email` decodes without error.
   - The score is the share of that body's words in a tool's text. Precision says little here, since the tools add headers.
   - go-fast-email, `email` and eml-parser score 1.0000, Python mail-parser 0.9998, the Rust crate 0.9974 and Kreuzberg 0.9892.
@@ -35,9 +35,9 @@ The go-fast-email figures are for main after #21 (commit 6e85ee0); its output is
 
 | `GOGC` | One worker | Peak | 24 workers | Peak |
 |---|---|---|---|---|
-| 100 (default) | 0.49 s | 22 MB | 0.42 s | 33 MB |
-| 200 | 0.43 s | 24 MB | 0.16 s | 63 MB |
-| 400 | 0.41 s | 33 MB | 0.12 s | 125 MB |
+| 100 (default) | 0.46 s | 20 MB | 0.25 s | 42 MB |
+| 200 | 0.41 s | 26 MB | 0.12 s | 130 MB |
+| 400 | 0.40 s | 39 MB | 0.09 s | 228 MB |
 
 ## How it is measured
 

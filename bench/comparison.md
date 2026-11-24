@@ -16,23 +16,23 @@ Each tool reads every file in one long-lived process, the way a pipeline does, w
 
 | Tool | Wall | Against go-fast-email | CPU | Peak memory | Failed | Median | 95th | 99th | Slowest file |
 |---|---|---|---|---|---|---|---|---|---|
-| mail-parser (Rust crate) | 0.23 s | 0.46 times | 0.2 s | 7 MB | 0 | 0.01 ms | 0.06 ms | 0.13 ms | 2 ms |
-| **go-fast-email** | 0.49 s |  | 0.7 s | 22 MB | 0 | 0.03 ms | 0.13 ms | 0.36 ms | 16 ms |
-| mail-parser (Python) | 4.91 s | 10.08 times | 4.8 s | 35 MB | 0 | 0.57 ms | 1.04 ms | 1.49 ms | 13 ms |
-| Python `email` (stdlib) | 5.98 s | 12.28 times | 5.9 s | 45 MB | 25 | 0.51 ms | 1.01 ms | 1.84 ms | 1192 ms |
-| Kreuzberg (Rust core, Python) | 6.23 s | 12.80 times | 2.1 s | 186 MB | 0 | 0.09 ms | 0.58 ms | 1.81 ms | 4261 ms |
-| eml-parser (Python) | 16.94 s | 34.79 times | 16.8 s | 96 MB | 0 | 1.46 ms | 5.90 ms | 11.35 ms | 101 ms |
+| mail-parser (Rust crate) | 0.23 s | 0.49 times | 0.2 s | 7 MB | 0 | 0.01 ms | 0.06 ms | 0.13 ms | 2 ms |
+| **go-fast-email** | 0.46 s |  | 0.6 s | 23 MB | 0 | 0.02 ms | 0.12 ms | 0.34 ms | 15 ms |
+| mail-parser (Python) | 4.91 s | 10.71 times | 4.8 s | 35 MB | 0 | 0.57 ms | 1.04 ms | 1.49 ms | 13 ms |
+| Python `email` (stdlib) | 5.98 s | 13.05 times | 5.9 s | 45 MB | 25 | 0.51 ms | 1.01 ms | 1.84 ms | 1192 ms |
+| Kreuzberg (Rust core, Python) | 6.23 s | 13.60 times | 2.1 s | 186 MB | 0 | 0.09 ms | 0.58 ms | 1.81 ms | 4261 ms |
+| eml-parser (Python) | 16.94 s | 36.98 times | 16.8 s | 96 MB | 0 | 1.46 ms | 5.90 ms | 11.35 ms | 101 ms |
 
 ### 24 workers
 
 | Tool | Wall | Against go-fast-email | CPU | Peak memory | Failed | Median | 95th | 99th | Slowest file |
 |---|---|---|---|---|---|---|---|---|---|
-| mail-parser (Rust crate) | 0.06 s | 0.15 times | 0.9 s | 15 MB | 0 | 0.02 ms | 0.09 ms | 0.20 ms | 3 ms |
-| Kreuzberg (Rust core, Python) | 0.34 s | 0.82 times | 4.3 s | 1,831 MB | 0 | 0.13 ms | 1.09 ms | 6.39 ms | 123 ms |
-| **go-fast-email** | 0.42 s |  | 2.5 s | 33 MB | 0 | 0.61 ms | 3.39 ms | 5.48 ms | 31 ms |
-| mail-parser (Python) | 0.47 s | 1.11 times | 8.6 s | 664 MB | 0 | 0.91 ms | 1.72 ms | 2.74 ms | 23 ms |
-| eml-parser (Python) | 1.54 s | 3.69 times | 30.8 s | 1,522 MB | 0 | 2.42 ms | 11.21 ms | 23.75 ms | 171 ms |
-| Python `email` (stdlib) | 1.75 s | 4.19 times | 9.8 s | 634 MB | 25 | 0.86 ms | 2.22 ms | 5.03 ms | 1335 ms |
+| mail-parser (Rust crate) | 0.06 s | 0.22 times | 0.9 s | 15 MB | 0 | 0.02 ms | 0.09 ms | 0.20 ms | 3 ms |
+| **go-fast-email** | 0.28 s |  | 1.9 s | 44 MB | 0 | 0.21 ms | 2.74 ms | 4.78 ms | 32 ms |
+| Kreuzberg (Rust core, Python) | 0.34 s | 1.23 times | 4.3 s | 1,831 MB | 0 | 0.13 ms | 1.09 ms | 6.39 ms | 123 ms |
+| mail-parser (Python) | 0.47 s | 1.66 times | 8.6 s | 664 MB | 0 | 0.91 ms | 1.72 ms | 2.74 ms | 23 ms |
+| eml-parser (Python) | 1.54 s | 5.48 times | 30.8 s | 1,522 MB | 0 | 2.42 ms | 11.21 ms | 23.75 ms | 171 ms |
+| Python `email` (stdlib) | 1.75 s | 6.24 times | 9.8 s | 634 MB | 25 | 0.86 ms | 2.22 ms | 5.03 ms | 1335 ms |
 
 ### go-fast-email and `GOGC`
 
@@ -40,9 +40,9 @@ Go's garbage collector can be given more memory for less work with `GOGC` in the
 
 | `GOGC` | One worker | Peak | 24 workers | Peak |
 |---|---|---|---|---|
-| 100 (default) | 0.49 s | 22 MB | 0.42 s | 33 MB |
-| 200 | 0.43 s | 24 MB | 0.16 s | 63 MB |
-| 400 | 0.41 s | 33 MB | 0.12 s | 125 MB |
+| 100 (default) | 0.46 s | 20 MB | 0.25 s | 42 MB |
+| 200 | 0.41 s | 26 MB | 0.12 s | 130 MB |
+| 400 | 0.40 s | 39 MB | 0.09 s | 228 MB |
 
 ### Accuracy
 
