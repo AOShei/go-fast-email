@@ -88,6 +88,10 @@ type comp struct {
 	props          []*vobj.Property
 	subs           []*comp
 	offset, length int
+	// cont: the component holds items rather than being one, a VCALENDAR
+	// at the top level or in another such. A VCALENDAR inside an item is
+	// a component of the item, counted in the item's MaxComponentItems.
+	cont bool
 }
 
 // vstate is the state of one calendar or contact list while it is read.
@@ -150,15 +154,19 @@ func (r *reader) vobject(src io.ReaderAt, size int64, format string) (*gofastcor
 	return r.finish(), nil
 }
 
-// container reports whether a component holds items rather than being
-// one: a calendar.
-func container(name string) bool { return name == "VCALENDAR" }
+// outside reports whether no item is open: the stack is empty or its top
+// is a container (comp.cont).
+func (v *vstate) outside() bool {
+	return len(v.stack) == 0 || v.stack[len(v.stack)-1].cont
+}
 
 func (v *vstate) event(e vobj.Event) {
 	switch e.Kind {
 	case vobj.Begin:
 		c := &comp{name: e.Name, offset: e.Offset}
-		if len(v.stack) > 0 && !container(v.stack[len(v.stack)-1].name) && !container(e.Name) {
+		if v.outside() {
+			c.cont = e.Name == "VCALENDAR"
+		} else {
 			// Inside an item: held until the item ends.
 			if v.held >= MaxComponentItems {
 				v.over++
@@ -167,7 +175,7 @@ func (v *vstate) event(e vobj.Event) {
 		}
 		v.stack = append(v.stack, c)
 	case vobj.Prop:
-		if len(v.stack) == 0 || container(v.stack[len(v.stack)-1].name) {
+		if v.outside() {
 			if v.calN >= MaxComponentItems {
 				v.over++
 				return
@@ -188,8 +196,8 @@ func (v *vstate) event(e vobj.Event) {
 		v.stack = v.stack[:len(v.stack)-1]
 		c.length = e.Length
 		switch {
-		case container(c.name):
-		case len(v.stack) == 0 || container(v.stack[len(v.stack)-1].name):
+		case c.cont:
+		case v.outside():
 			v.item(c)
 			v.held = 0
 		case v.held <= MaxComponentItems:
@@ -369,7 +377,7 @@ func (v *vstate) finishItem(c *comp, from int, a *attrs, children []int) {
 	if from >= len(v.m.part.Blocks) {
 		if !v.m.cut {
 			v.bare++
-			if k := strings.ToLower(c.name); !slices.Contains(v.kinds, k) && len(v.kinds) < maxListed {
+			if k := clean.Line(strings.ToLower(c.name)); !slices.Contains(v.kinds, k) && len(v.kinds) < maxListed {
 				v.kinds = append(v.kinds, k)
 			}
 		}
@@ -390,7 +398,7 @@ func (v *vstate) finishItem(c *comp, from int, a *attrs, children []int) {
 			out[k] = x
 		}
 	}
-	out[AttrComponent] = strings.ToLower(c.name)
+	out[AttrComponent] = clean.Line(strings.ToLower(c.name))
 	if len(children) > 0 {
 		idx := make([]string, len(children))
 		for i, n := range children {
