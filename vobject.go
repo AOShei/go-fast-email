@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/AOShei/go-fast-core"
 	"github.com/AOShei/go-fast-email/internal/charset"
@@ -74,20 +75,20 @@ type comp struct {
 
 // vstate is the state of one calendar or contact list while it is read.
 type vstate struct {
-	r      *reader
-	m      *message
-	cal    bool // a calendar; else a contact list
-	stack  []*comp
-	held   int // properties and components held in the open item
-	calN   int // properties held for the metadata
-	over   int // properties and components not read: past MaxComponentItems
-	meta   []*vobj.Property
-	tzids  []string
-	cards  int
-	alts   int // components with a DESCRIPTION and an HTML one
-	bare   int // components with no text
-	kinds  []string
-	undec  bool // the decode budget is spent
+	r     *reader
+	m     *message
+	cal   bool // a calendar; else a contact list
+	stack []*comp
+	held  int // properties and components held in the open item
+	calN  int // properties held for the metadata
+	over  int // properties and components not read: past MaxComponentItems
+	meta  []*vobj.Property
+	tzids []string
+	cards int
+	alts  int // components with a DESCRIPTION and an HTML one
+	bare  int // components with no text
+	kinds []string
+	undec bool // the decode budget is spent
 }
 
 // vobject reads a calendar or contact list.
@@ -273,14 +274,7 @@ func (v *vstate) pieces(p *vobj.Property, sep byte) []string {
 // line makes text one line, counting the control characters removed.
 func (v *vstate) line(s string) string { return v.m.line(s) }
 
-func utf8Valid(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] >= 0x80 {
-			return strings.ToValidUTF8(s, "�") == s
-		}
-	}
-	return true
-}
+func utf8Valid(s string) bool { return utf8.ValidString(s) }
 
 // attrs gathers the properties of a component that are not used in its
 // text, by lower-case name, a repeated name joined by "\n".

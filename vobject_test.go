@@ -269,9 +269,9 @@ func TestContactPhoto(t *testing.T) {
 func TestVobjDetection(t *testing.T) {
 	for src, format := range map[string]string{
 		"\xEF\xBB\xBF \r\n\tbegin:vcalendar\r\nEND:VCALENDAR": "ics",
-		"Begin:VCard\nFN:a\nEnd:VCard":                         "vcf",
-		"BEGIN:VCARDX\n\nbody":                                 "eml",
-		"BEGIN:VCALENDAR":                                      "ics",
+		"Begin:VCard\nFN:a\nEnd:VCard":                        "vcf",
+		"BEGIN:VCARDX\n\nbody":                                "eml",
+		"BEGIN:VCALENDAR":                                     "ics",
 	} {
 		doc := extract(t, src, nil)
 		if doc.Source.Format != format {
