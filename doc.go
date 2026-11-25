@@ -10,6 +10,15 @@
 // signature is a winmail.dat, and a file that begins with a header field
 // is a message.
 //
+// It also reads calendars (format ics: RFC 5545 and vCalendar 1.0) and
+// contact lists (format vcf: RFC 6350, 2426 and vCard 2.1): a file that
+// begins, after a byte order mark and white space, with BEGIN:VCALENDAR
+// or BEGIN:VCARD, tested before the test for a message. Each is one part
+// of kind body: a heading, a paragraph of details and paragraphs of
+// description per event, to-do or card, with every other property in the
+// attributes of its first block, and the byte span it came from and its
+// UID on every block.
+//
 // Every message is a part of kind message: a .eml, .msg or winmail.dat is
 // a document of one part, a mailbox has a part for each message. A part
 // begins with a heading holding the subject and a paragraph with the

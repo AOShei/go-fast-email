@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Calendars (`.ics`) and contact lists (`.vcf`).** `Extract` reads a
+  file that begins, after a byte order mark and white space,
+  `BEGIN:VCALENDAR` as format `ics` (`text/calendar`) and one that begins
+  `BEGIN:VCARD` as format `vcf` (`text/vcard`), before the test for a
+  message; `Formats()` lists both. One part of kind `body`: per event,
+  to-do, journal entry, free/busy time or availability a heading
+  (SUMMARY), a paragraph of details, DESCRIPTION and COMMENT paragraphs,
+  Outlook's HTML description and inline attachments as embedded
+  documents; per card a heading (FN, else N, else ORG), a paragraph of
+  details with TYPE values and Apple's labels, NOTE paragraphs, PHOTO
+  and LOGO as images. Every other property is in the attributes of the
+  component's first block; every block has the byte offsets it came from
+  and the component's UID as its anchor. vCard 2.1 and vCalendar 1.0
+  quoted-printable, base64 and CHARSET values are decoded. README:
+  "How a calendar maps", "How a contact list maps".
+- New warning code `email.component_without_text` (info); new constants
+  `MaxComponentDepth` (32), `MaxContentLineBytes` (1 MiB),
+  `MaxComponentItems` (100,000), `AttrComponent`.
+- **Command:** the directory walk takes `.ics`, `.ifb`, `.vcs`, `.vcf`
+  and `.vcard`; attachments of type `text/calendar`, `application/ics`,
+  `text/x-vcalendar`, `text/vcard`, `text/x-vcard` and `text/directory`
+  (and octet-stream ones with those extensions) are read by this
+  library, so an invitation's `text/calendar` alternative is a calendar
+  child with its blocks.
+
 ## v0.2.1 (2026-11-24)
 
 - **go-fast-core v0.1.4** (was v0.1.2): `Document.Text` and `Markdown`

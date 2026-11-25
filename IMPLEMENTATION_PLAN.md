@@ -72,6 +72,37 @@ no `HiddenChecked`, no hidden warnings.
 | 14. more CJK sets | GB18030 (four-byte and supplementary), EUC-JP (with JIS X 0212) and ISO-2022-JP decoded as the WHATWG decoders, from tables written by `gen/gen_cjk_extra.py`; `gbk`/`gb2312` stay on cp936; `FuzzDecodeCJK`, `TestCJKEncodedWords`, `TestCJKBody`, `TestCJKMsgCodepage` | done |
 | 15. release docs | package doc comment, README, CHANGELOG and NOTICE brought up to date for v0.1.0 | done |
 
+## Calendars and contact lists (branch ics-vcf)
+
+The design was decided by Andrew before the run: formats `ics` and `vcf`
+of this library, decided from the bytes before the message test; one
+`body` part; per component a heading, a details paragraph and
+description paragraphs, every unused property in the attributes of its
+first block, byte offsets and the UID on every block.
+
+1. `internal/vobj`: one parser of content lines for both formats, giving
+   events (BEGIN, property, END) one logical line at a time, with the byte
+   span of each; unfolding, quoted-printable soft breaks, parameters,
+   recovery (unmatched and missing END, lines that are not content lines),
+   bounds (depth 32, line 1 MiB). Tests and `FuzzVobj`.
+2. Calendars and contact lists in the root package (`vobject.go`): an
+   item (event, to-do, card) is built from the events and turned into
+   blocks when it ends, so a file is never held as a tree; at most
+   100,000 properties and components are held for one item.
+3. Tests: table tests on fixtures of each rule; `FuzzExtract` seeds;
+   `TestCorpusVobj` over the corpus's ics and vcf files with two oracles
+   on dev files (every word of a block is in the bytes it cites; every
+   property of a component is in its first block's attributes or read
+   into its text).
+4. The command's walk and dispatcher.
+
+Measured on the corpus: 121 dev and 41 held-out `.ics` files, 14 dev and
+5 held-out `.vcf` files read with no error, panic or Validate failure; 7
+dev and 5 held-out `.ics` files are fragments (a lone `VEVENT` or
+`VTIMEZONE`, or no BEGIN line) and, by the decided rule, are read as
+messages, and one dev `.vcf` begins with a grouped `home.begin:vcard`
+and is read as a message too.
+
 ## Open items at v0.1.0
 
 1. Real mail: the dev corpus has been run through the command

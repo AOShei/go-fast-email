@@ -75,7 +75,8 @@ const (
 )
 
 // Extractor extracts email: a single message (.eml), a mailbox (.mbox), an
-// Outlook message (.msg) and a TNEF stream (winmail.dat). The zero value
+// Outlook message (.msg) and a TNEF stream (winmail.dat); and calendars
+// (.ics) and contact lists (.vcf). The zero value
 // is ready to use and safe for concurrent use. Its fields are the settings
 // only this library has; everything else is in gofastcore.Options. For
 // each, zero means the default and a negative value no limit.
