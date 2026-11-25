@@ -521,7 +521,8 @@ func caret(b []byte) string {
 }
 
 // Unescape undoes the escapes of a TEXT value: \\ \; \, and \n or \N (a
-// line break). A backslash before anything else is kept as written.
+// line break), and \: (vCard 3.0 writers such as Apple's escape the colon
+// of an address). A backslash before anything else is kept as written.
 func Unescape(s string) string {
 	if strings.IndexByte(s, '\\') < 0 {
 		return s
@@ -531,7 +532,7 @@ func Unescape(s string) string {
 	for i := 0; i < len(s); i++ {
 		if s[i] == '\\' && i+1 < len(s) {
 			switch s[i+1] {
-			case '\\', ';', ',':
+			case '\\', ';', ',', ':':
 				sb.WriteByte(s[i+1])
 				i++
 				continue

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,8 @@ import (
 //     first block's attributes, or read into its text (readElsewhere).
 //     VTIMEZONE's properties are rules for computing times; only TZID is
 //     read, into Metadata.Extra["timezones"].
+var beginLine = regexp.MustCompile(`^(?i)(?:[a-z0-9-]+\.)?BEGIN:(VCARD|VCALENDAR|VEVENT|VTODO|VJOURNAL|VFREEBUSY|VAVAILABILITY|VTIMEZONE)[ \t\r\n]`)
+
 func TestCorpusVobj(t *testing.T) {
 	root := corpusRoot()
 	if _, err := os.Stat(root); err != nil {
@@ -70,17 +73,19 @@ func TestCorpusVobj(t *testing.T) {
 						t.Errorf("%s: Validate failed", label)
 					}
 				}
-				// The format is decided from the bytes: a fragment that
-				// does not begin with BEGIN:VCALENDAR or BEGIN:VCARD (a
-				// lone VEVENT from a library's tests) is read as a
-				// message, and a vCard named .ics is a vCard.
+				// The format is decided from the bytes: a BEGIN line of a
+				// card, a calendar or a component a calendar holds (a
+				// lone VEVENT from a library's tests), perhaps with a
+				// group before it, makes a calendar or a contact list;
+				// anything else is a message, and a vCard named .ics is a
+				// vCard.
 				want := "eml"
-				head := strings.ToUpper(strings.TrimLeft(strings.TrimPrefix(string(src[:min(len(src), 64)]), "\xEF\xBB\xBF"), " \t\r\n"))
-				switch {
-				case strings.HasPrefix(head, "BEGIN:VCALENDAR"):
+				head := strings.TrimLeft(strings.TrimPrefix(string(src[:min(len(src), 64)]), "\xEF\xBB\xBF"), " \t\r\n")
+				if m := beginLine.FindStringSubmatch(head); m != nil {
 					want = "ics"
-				case strings.HasPrefix(head, "BEGIN:VCARD"):
-					want = "vcf"
+					if strings.EqualFold(m[1], "vcard") {
+						want = "vcf"
+					}
 				}
 				if doc.Source.Format != want {
 					t.Errorf("%s: read as %s", label, doc.Source.Format)

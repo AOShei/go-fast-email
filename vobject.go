@@ -50,17 +50,34 @@ const (
 
 // vobjFormat decides from the first bytes of a file whether it is a
 // calendar ("ics") or a contact list ("vcf"): after a byte order mark and
-// white space, BEGIN:VCALENDAR or BEGIN:VCARD, in any case.
+// white space, a BEGIN line, in any case, perhaps with a group before it
+// ("home.begin:vcard", as some address books write), of VCARD, or of
+// VCALENDAR or a component a calendar holds (a file of events without
+// the calendar around them, as some programs export).
 func vobjFormat(head []byte) string {
 	head = bytes.TrimPrefix(head, []byte("\xEF\xBB\xBF"))
 	head = bytes.TrimLeft(head, " \t\r\n")
-	for _, f := range []struct{ begin, format string }{{"BEGIN:VCALENDAR", "ics"}, {"BEGIN:VCARD", "vcf"}} {
-		if len(head) < len(f.begin) || !strings.EqualFold(string(head[:len(f.begin)]), f.begin) {
-			continue
+	if i := bytes.IndexByte(head, ':'); i > 0 && i < 64 {
+		// A group: letters, digits and hyphens, then a dot.
+		if j := bytes.IndexByte(head[:i], '.'); j > 0 && strings.Trim(strings.ToLower(string(head[:j])), "abcdefghijklmnopqrstuvwxyz0123456789-") == "" {
+			head = head[j+1:]
 		}
-		if rest := head[len(f.begin):]; len(rest) == 0 || bytes.IndexByte([]byte(" \t\r\n"), rest[0]) >= 0 {
-			return f.format
-		}
+	}
+	const begin = "BEGIN:"
+	if len(head) < len(begin) || !strings.EqualFold(string(head[:len(begin)]), begin) {
+		return ""
+	}
+	name := head[len(begin):]
+	if i := bytes.IndexAny(name, " \t\r\n"); i >= 0 {
+		name = name[:i]
+	} else if len(name) > 16 {
+		return ""
+	}
+	switch strings.ToUpper(string(name)) {
+	case "VCARD":
+		return "vcf"
+	case "VCALENDAR", "VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY", "VAVAILABILITY", "VTIMEZONE":
+		return "ics"
 	}
 	return ""
 }
@@ -569,7 +586,7 @@ func (v *vstate) event1(c *comp) {
 				name = p.Param("FILENAME")
 			}
 			mt := strings.ToLower(strings.TrimSpace(p.Param("FMTTYPE")))
-			if mt == "" || !strings.Contains(mt, "/") {
+			if !mediaType(mt) {
 				mt = "application/octet-stream"
 			}
 			v.r.child(m, m.fileName(name), mt, v.decoded(p), true)
@@ -809,7 +826,7 @@ func (v *vstate) picture(p *vobj.Property) (string, []byte, bool) {
 		}
 	}
 	if p.Encoding() == "B" {
-		if mt == "" {
+		if !mediaType(mt) {
 			mt = "application/octet-stream"
 		}
 		return mt, v.decoded(p), true
@@ -841,7 +858,16 @@ func (v *vstate) picture(p *vobj.Property) (string, []byte, bool) {
 		}
 		out = nil
 	}
+	if !mediaType(mt) {
+		mt = "application/octet-stream"
+	}
 	return mt, out, true
+}
+
+// mediaType reports whether s is a media type: a type and a subtype, MIME
+// tokens.
+func mediaType(s string) bool {
+	return strings.Count(s, "/") == 1 && rfc822.Token(s) && !strings.HasPrefix(s, "/") && !strings.HasSuffix(s, "/")
 }
 
 // percentDecode undoes the %XX escapes of a data: URI.

@@ -6,9 +6,10 @@
 
 - **Calendars (`.ics`) and contact lists (`.vcf`).** `Extract` reads a
   file that begins, after a byte order mark and white space,
-  `BEGIN:VCALENDAR` as format `ics` (`text/calendar`) and one that begins
-  `BEGIN:VCARD` as format `vcf` (`text/vcard`), before the test for a
-  message; `Formats()` lists both. One part of kind `body`: per event,
+  `BEGIN:VCALENDAR` (or `BEGIN:` and a component a calendar holds, such as
+  `VEVENT`) as format `ics` (`text/calendar`) and one that begins
+  `BEGIN:VCARD` (perhaps after a group) as format `vcf` (`text/vcard`),
+  before the test for a message; `Formats()` lists both. One part of kind `body`: per event,
   to-do, journal entry, free/busy time or availability a heading
   (SUMMARY), a paragraph of details, DESCRIPTION and COMMENT paragraphs,
   Outlook's HTML description and inline attachments as embedded

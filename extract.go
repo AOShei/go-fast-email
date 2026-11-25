@@ -151,8 +151,10 @@ const lookVobj = 4096
 // Extract reads size bytes from r and returns the document.
 //
 // The format is decided from the bytes, never from a name: a file that
-// begins, after a byte order mark and white space, with BEGIN:VCALENDAR is
-// a calendar (ics) and one with BEGIN:VCARD a contact list (vcf); a
+// begins, after a byte order mark and white space, with BEGIN:VCALENDAR or
+// BEGIN: and a component a calendar holds (VEVENT, VTODO, ...) is a
+// calendar (ics), and one with BEGIN:VCARD, perhaps after a group, a
+// contact list (vcf); a
 // compound file is an Outlook message, a file that begins with an mbox
 // "From " line
 // is a mailbox, a file that begins with the TNEF signature is a

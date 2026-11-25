@@ -62,6 +62,7 @@ jobs:
           go test -run '^$' -fuzz '^FuzzHeader$' -fuzztime 20s -fuzzminimizetime 0s ./internal/rfc822
           go test -run '^$' -fuzz '^FuzzDecompress$' -fuzztime 20s -fuzzminimizetime 0s ./internal/rtfcp
           go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 20s -fuzzminimizetime 0s ./internal/tnef
+          go test -run '^$' -fuzz '^FuzzVobj$' -fuzztime 20s -fuzzminimizetime 0s ./internal/vobj
 
   dependencies:
     # The series rule: the standard library and go-fast modules only.

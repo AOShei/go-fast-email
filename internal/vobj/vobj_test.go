@@ -102,7 +102,7 @@ func TestParameters(t *testing.T) {
 }
 
 func TestEscapes(t *testing.T) {
-	if got := Unescape(`a\\b\;c\,d\ne\Nf\:g\`); got != "a\\b;c,d\ne\nf\\:g\\" {
+	if got := Unescape(`a\\b\;c\,d\ne\Nf\:g\`); got != "a\\b;c,d\ne\nf:g\\" {
 		t.Errorf("Unescape %q", got)
 	}
 	if got := Split(`Doe\;x;John;;Mr.\\;`, ';'); !reflect.DeepEqual(got, []string{`Doe\;x`, "John", "", `Mr.\\`, ""}) {

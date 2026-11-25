@@ -13,7 +13,8 @@
 // It also reads calendars (format ics: RFC 5545 and vCalendar 1.0) and
 // contact lists (format vcf: RFC 6350, 2426 and vCard 2.1): a file that
 // begins, after a byte order mark and white space, with BEGIN:VCALENDAR
-// or BEGIN:VCARD, tested before the test for a message. Each is one part
+// (or a component a calendar holds) or BEGIN:VCARD, tested before the
+// test for a message. Each is one part
 // of kind body: a heading, a paragraph of details and paragraphs of
 // description per event, to-do or card, with every other property in the
 // attributes of its first block, and the byte span it came from and its

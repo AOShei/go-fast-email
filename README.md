@@ -42,9 +42,12 @@ fmt.Println(doc.Markdown())
 ```
 
 The format is decided from the bytes, never from the name: a file that
-begins (after a byte order mark and white space, in any case)
-`BEGIN:VCALENDAR` is a calendar (`ics`) and one that begins `BEGIN:VCARD`
-a contact list (`vcf`); a compound file is an Outlook message, a file that begins `From ` is a mailbox, a file that
+begins (after a byte order mark and white space, in any case, perhaps
+with a group such as `home.` before it) `BEGIN:VCARD` is a contact list
+(`vcf`), and one that begins `BEGIN:` with `VCALENDAR` or a component a
+calendar holds (`VEVENT`, `VTODO`, `VJOURNAL`, `VFREEBUSY`,
+`VAVAILABILITY`, `VTIMEZONE`: events exported without their calendar) a
+calendar (`ics`); a compound file is an Outlook message, a file that begins `From ` is a mailbox, a file that
 begins with the TNEF signature is a winmail.dat (format `tnef`), a file
 that begins with a header field is a message.
 
