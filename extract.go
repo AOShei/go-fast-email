@@ -106,7 +106,7 @@ var _ gofastcore.Extractor = (*Extractor)(nil)
 
 // Formats lists the formats this library extracts, as they appear in
 // gofastcore.Source.Format.
-func (e *Extractor) Formats() []string { return []string{"eml", "mbox", "msg", "tnef"} }
+func (e *Extractor) Formats() []string { return []string{"eml", "mbox", "msg", "tnef", "ics", "vcf"} }
 
 // Extract reads an email file with default settings. It is
 // (&Extractor{}).Extract.
@@ -143,10 +143,17 @@ func (e *Extractor) ExtractFile(ctx context.Context, path string, opts *gofastco
 
 var cfbSignature = []byte{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1}
 
+// lookVobj is how far into a file Extract looks for the BEGIN line of a
+// calendar or contact list, past a byte order mark and white space.
+const lookVobj = 4096
+
 // Extract reads size bytes from r and returns the document.
 //
-// The format is decided from the bytes, never from a name: a compound
-// file is an Outlook message, a file that begins with an mbox "From " line
+// The format is decided from the bytes, never from a name: a file that
+// begins, after a byte order mark and white space, with BEGIN:VCALENDAR is
+// a calendar (ics) and one with BEGIN:VCARD a contact list (vcf); a
+// compound file is an Outlook message, a file that begins with an mbox
+// "From " line
 // is a mailbox, a file that begins with the TNEF signature is a
 // winmail.dat, and a file that begins with a header field is a message.
 // An error wraps one of the gofastcore errors:
@@ -168,15 +175,20 @@ func (e *Extractor) Extract(ctx context.Context, r io.ReaderAt, size int64, opts
 	if size > gofastcore.ResolveLimit(opts.Limits.MaxInputBytes, DefaultMaxInputBytes) {
 		return nil, fmt.Errorf("gofastemail: input of %d bytes: %w", size, gofastcore.ErrLimitExceeded)
 	}
-	var head [8]byte
+	var head [lookVobj]byte
 	n, _ := r.ReadAt(head[:], 0)
 	ctx, text := gofastcore.WithTextBudget(ctx, opts.Limits)
 	defer text.Close()
 	ctx, dec := gofastcore.WithDecodeBudget(ctx, opts.Limits, DefaultMaxDecodedBytes)
 	defer dec.Close()
 	rd := &reader{e: e, ctx: ctx, opts: opts, text: text, dec: dec}
+	if f := vobjFormat(head[:n]); f != "" {
+		// Before the test for a message: a content line looks like a
+		// header field.
+		return rd.vobject(r, size, f)
+	}
 	switch {
-	case bytes.Equal(head[:n], cfbSignature):
+	case bytes.HasPrefix(head[:n], cfbSignature):
 		return rd.msgFile(r, size)
 	case bytes.HasPrefix(head[:n], []byte("From ")):
 		return rd.mbox(r, size)
