@@ -936,6 +936,9 @@ func (v *vstate) finish(pr vobj.Problems, what string) {
 	if pr.NotLines > 0 {
 		m.warn(gofastcore.SeverityInfo, gofastcore.WarnInputRepaired, fmt.Sprintf("%s (no colon, or no name before it); each such line is read as continuing the value of the property before it", plural(pr.NotLines, "line is not a content line", "lines are not content lines")))
 	}
+	if pr.SoftBreakEnds > 0 {
+		m.warn(gofastcore.SeverityInfo, gofastcore.WarnInputRepaired, fmt.Sprintf("%s with a soft line break (\"=\") before a BEGIN line or the END line of an open component; each value ends there", plural(pr.SoftBreakEnds, "quoted-printable value ends", "quoted-printable values end")))
+	}
 	if pr.TooDeep > 0 {
 		m.warn(gofastcore.SeverityError, gofastcore.WarnLimitExceeded, fmt.Sprintf("components nested more than %d deep are not read (%s)", MaxComponentDepth, things(pr.TooDeep, "component")))
 	}

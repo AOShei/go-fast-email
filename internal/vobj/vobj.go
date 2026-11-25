@@ -13,7 +13,8 @@
 // component is skipped; a component with no END ends where the END of a
 // component around it is, or at the end of the input; a line that is not
 // a content line (no colon, or no name before it) continues the property
-// before it. Two bounds hold: components nested deeper than MaxDepth are
+// before it; a quoted-printable soft line break does not continue onto a
+// BEGIN line or the END line of an open component. Two bounds hold: components nested deeper than MaxDepth are
 // skipped, and a logical line longer than MaxLine is cut.
 package vobj
 
@@ -139,6 +140,10 @@ type Problems struct {
 	NotLines     int // lines that are not content lines (no colon, or no name before it)
 	TooDeep      int // components nested deeper than MaxDepth, skipped
 	LongLines    int // logical lines longer than MaxLine, cut
+	// SoftBreakEnds counts quoted-printable values whose last line ends
+	// with a soft line break ("=") before a BEGIN line or the END line of
+	// an open component: the value ends there.
+	SoftBreakEnds int
 }
 
 type open struct {
@@ -194,9 +199,9 @@ func (p *Parser) step() {
 	line, start, end, cut, ok := p.readLine()
 	if !ok {
 		p.flush()
-		if p.skip == 0 {
-			p.Problems.MissingEnd += len(p.stack)
-		}
+		// Every component still open has no END line, those skipped
+		// too.
+		p.Problems.MissingEnd += len(p.stack) + p.skip
 		p.closeTo(0, p.last, true)
 		p.done = true
 		return
@@ -326,9 +331,15 @@ func (p *Parser) readLine() (line []byte, start, end int, cut, ok bool) {
 				}
 			}
 			if qp == 1 {
-				// A soft line break: the next line continues the value,
-				// whatever it begins with. The break is kept for the
-				// decoder, which removes it.
+				if p.boundary(p.pos) {
+					// A soft break before a BEGIN line, or the END line
+					// of an open component: phone exporters end a value
+					// with "=". The line ends the value.
+					p.Problems.SoftBreakEnds++
+					break
+				}
+				// A soft line break: the next line continues the value.
+				// The break is kept for the decoder, which removes it.
 				if len(p.buf) < MaxLine {
 					p.buf = append(p.buf, '\n')
 				}
@@ -342,6 +353,33 @@ func (p *Parser) readLine() (line []byte, start, end int, cut, ok bool) {
 		break
 	}
 	return p.buf, start, end, cut, true
+}
+
+// boundary reports whether the line at i begins, in any case, with
+// "BEGIN:", or is "END:" and the name of an open component (any name
+// inside a skipped component, whose names are not kept).
+func (p *Parser) boundary(i int) bool {
+	j := i
+	for j < len(p.src) && p.src[j] != '\r' && p.src[j] != '\n' {
+		j++
+	}
+	l := p.src[i:j]
+	if len(l) >= 6 && strings.EqualFold(string(l[:6]), "BEGIN:") {
+		return true
+	}
+	if len(l) < 4 || !strings.EqualFold(string(l[:4]), "END:") {
+		return false
+	}
+	if p.skip > 0 {
+		return true
+	}
+	name := strings.TrimSpace(string(l[4:]))
+	for _, o := range p.stack {
+		if strings.EqualFold(o.name, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func trimRight(b []byte) []byte {

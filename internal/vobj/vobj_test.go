@@ -80,6 +80,23 @@ func TestQuotedPrintableSoftBreak(t *testing.T) {
 		`X:"a=" [41:45]`, `Y:"b" [46:49]`)
 }
 
+// A soft break before a BEGIN line or the END line of an open component
+// ends the value; before the END of a component that is not open, it
+// continues.
+func TestQuotedPrintableSoftBreakBoundary(t *testing.T) {
+	src := "BEGIN:VCARD\nNOTE;QUOTED-PRINTABLE:a=\nend:vcard\nBEGIN:VCARD\nNOTE;QUOTED-PRINTABLE:b=\nbegin:x\nN;QUOTED-PRINTABLE:c=\nEND:Y\nEND:X\nEND:VCARD\n"
+	_, ev, pr := events(src)
+	var got []string
+	for _, e := range ev {
+		if e.Kind == Prop {
+			got = append(got, e.Prop.Value)
+		}
+	}
+	if want := []string{"a=", "b=", "c=\nEND:Y"}; !reflect.DeepEqual(got, want) || pr.SoftBreakEnds != 2 {
+		t.Errorf("values %q, SoftBreakEnds %d; want %q, 2",got, pr.SoftBreakEnds, want)
+	}
+}
+
 func TestParameters(t *testing.T) {
 	check(t, `item1.TEL;type=CELL;TYPE="a,b":1`+"\n"+`ATTENDEE;CN="Doe, J^'x^' ^^ ^n";x-y=a,"b:c",d:mailto:j@x`+"\n"+"TEL;CELL;PREF:2",
 		`item1.TEL;TYPE=CELL;TYPE=a,b:"1" [0:32]`,
