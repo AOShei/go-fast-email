@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("BEGIN:VCARD\nN;\x95\x0eCHARSET=ISO-8859-1;QUOTED-PRINTABLE:M=FC;=\nJ\nPHOTO:data:image/\x00\x7ff;base64,R0lGODdh\nEND:VCARD")

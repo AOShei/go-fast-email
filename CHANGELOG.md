@@ -1,5 +1,59 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Calendars (`.ics`) and contact lists (`.vcf`).** `Extract` reads a
+  file that begins, after a byte order mark and white space,
+  `BEGIN:VCALENDAR` (or `BEGIN:` and a component a calendar holds, such as
+  `VEVENT`) as format `ics` (`text/calendar`) and one that begins
+  `BEGIN:VCARD` (perhaps after a group) as format `vcf` (`text/vcard`),
+  before the test for a message; `Formats()` lists both. One part of kind `body`: per event,
+  to-do, journal entry, free/busy time or availability a heading
+  (SUMMARY), a paragraph of details, DESCRIPTION and COMMENT paragraphs,
+  Outlook's HTML description and inline attachments as embedded
+  documents; per card a heading (FN, else N, else ORG), a paragraph of
+  details with TYPE values and Apple's labels, NOTE paragraphs, PHOTO
+  and LOGO as images. Every other property is in the attributes of the
+  component's first block; every block has the byte offsets it came from
+  and the component's UID as its anchor. vCard 2.1 and vCalendar 1.0
+  quoted-printable, base64 and CHARSET values are decoded. README:
+  "How a calendar maps", "How a contact list maps".
+- New warning code `email.component_without_text` (info); new constants
+  `MaxComponentDepth` (32), `MaxContentLineBytes` (1 MiB),
+  `MaxComponentItems` (100,000), `AttrComponent`.
+- **Command:** the directory walk takes `.ics`, `.ifb`, `.vcs`, `.vcf`
+  and `.vcard`; attachments of type `text/calendar`, `application/ics`,
+  `text/x-vcalendar`, `text/vcard`, `text/x-vcard` and `text/directory`
+  (and octet-stream ones with those extensions) are read by this
+  library, so an invitation's `text/calendar` alternative is a calendar
+  child with its blocks. The part's `charset` parameter is passed on as
+  `Extractor.Charset` for that child (the set of values with no `CHARSET`
+  of their own).
+- **Calendars and contacts, after review:**
+  - Every parameter of every property is kept in the attributes, under
+    `<property>.<parameter>` (`attendee.partstat`, Apple's
+    `x-apple-structured-location.x-address`, vCard 4 `adr.label`);
+    repeats joined by `\n`. Not kept: `ENCODING`, `CHARSET`, and TYPE
+    values written in a card's details line.
+  - A grouped property's key keeps its group (`item1.x-abrelatednames`).
+    A property whose key would be `component`, `children`, `cards` or
+    `timezones` is under `property.` and its key.
+  - The heading is the first non-empty `SUMMARY`.
+  - A component whose only text is its HTML description gets its details
+    paragraph (`Attachments: (text/html)`) with its attributes and
+    `Attrs["children"]`.
+  - `N` is split at `;` and `,` before unescaping (`O\,Brien` is
+    `O,Brien`).
+  - A quoted-printable soft break does not continue onto a `BEGIN:` line
+    or the `END:` of an open component (`input.repaired`).
+  - A `VCALENDAR` nested in an event counts in the event's
+    `MaxComponentItems`; components left open when the file ends inside
+    a skipped one are counted as missing their `END`; a control
+    character in a component's name is removed before the warning and
+    `Attrs["component"]`; TYPE values are collected in linear time.
+
 ## v0.2.1 (2026-11-24)
 
 - **go-fast-core v0.1.4** (was v0.1.2): `Document.Text` and `Markdown`

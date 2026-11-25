@@ -1,11 +1,13 @@
 // Command gofastemail extracts email (.eml, .mbox, Outlook .msg, TNEF
-// winmail.dat) into the shared document model of the go-fast libraries and
-// prints it as JSON, Markdown or plain text.
+// winmail.dat), calendars (.ics) and contact lists (.vcf) into the shared
+// document model of the go-fast libraries and prints it as JSON, Markdown
+// or plain text.
 //
 //	gofastemail [flags] file-or-directory...
 //
 // A directory stands for the files in it and below it whose extension is
-// .eml, .mbox, .mbx or .msg. A file named on the command line is read
+// .eml, .mbox, .mbx, .msg, .ics, .ifb, .vcs, .vcf or .vcard. A file named
+// on the command line is read
 // whatever its name, its format decided from its bytes, so a winmail.dat
 // is read when it is named. With one input the JSON is indented; with
 // several, each document is one line.
@@ -13,7 +15,8 @@
 // goes to standard error, and the exit status is 1 if any input could not
 // be read.
 //
-// Embedded documents are extracted too: attached messages by this
+// Embedded documents are extracted too: attached messages, calendars
+// (an invitation's text/calendar alternative) and contact lists by this
 // library; HTML, XHTML, Markdown and plain text bodies and attachments,
 // and CSV, TSV, Jupyter notebook and EPUB attachments, by go-fast-html;
 // RTF ones by go-fast-rtf. Other attachments are listed.
@@ -53,7 +56,8 @@ func main() {
 }
 
 // The extensions of the files this command picks out of a directory.
-var extensions = map[string]bool{".eml": true, ".mbox": true, ".mbx": true, ".msg": true}
+var extensions = map[string]bool{".eml": true, ".mbox": true, ".mbx": true, ".msg": true,
+	".ics": true, ".ifb": true, ".vcs": true, ".vcf": true, ".vcard": true}
 
 // run is the command: it reads args and writes documents to stdout and
 // messages to stderr, and returns the exit status.
@@ -77,7 +81,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags.Lookup("part-markers").Usage += " (here, each message)"
 	flags.Usage = func() {
 		fmt.Fprintln(stderr, "usage: gofastemail [flags] file-or-directory...")
-		fmt.Fprintln(stderr, "Extracts .eml, .mbox and .msg files, and winmail.dat files named on the command line. A directory stands for the email files in it and below it.")
+		fmt.Fprintln(stderr, "Extracts .eml, .mbox and .msg files, calendars (.ics, .ifb, .vcs) and contact lists (.vcf, .vcard), and winmail.dat files named on the command line. A directory stands for these files in it and below it.")
 		flags.PrintDefaults()
 	}
 	if err := flags.Parse(args); err != nil {
@@ -255,6 +259,16 @@ func dispatcher(extractor *gofastemail.Extractor) gofastcore.ChildFunc {
 		switch t {
 		case "message/rfc822", "message/global", "application/vnd.ms-outlook":
 			return extractor.Extract(ctx, r, size, o)
+		case "text/calendar", "application/ics", "text/x-vcalendar", "text/vcard", "text/x-vcard", "text/directory":
+			// A calendar or contact list declares its set per value
+			// (CHARSET); the message's charset parameter is the set of
+			// the values that declare none, as -charset is.
+			if cs := charsetOf(mimeType); cs != "" {
+				e := *extractor
+				e.Charset = cs
+				return e.Extract(ctx, r, size, o)
+			}
+			return extractor.Extract(ctx, r, size, o)
 		case "text/html", "application/xhtml+xml":
 			return text(&gofasthtml.Extractor{Format: "html", Charset: charsetOf(mimeType)})
 		case "text/markdown":
@@ -287,6 +301,8 @@ var byExtension = map[string]string{
 	".txt": "text/plain", ".md": "text/markdown", ".rtf": "application/rtf",
 	".csv": "text/csv", ".tsv": "text/tab-separated-values", ".tab": "text/tab-separated-values",
 	".ipynb": "application/x-ipynb+json", ".epub": "application/epub+zip",
+	".ics": "text/calendar", ".ifb": "text/calendar", ".vcs": "text/x-vcalendar",
+	".vcf": "text/vcard", ".vcard": "text/vcard",
 }
 
 // remarks sums up what a document's warnings say that a person running

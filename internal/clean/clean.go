@@ -39,6 +39,9 @@ func Raw(s string) string {
 	return t
 }
 
+// RawN is Raw, and the number of control characters removed, as TextN.
+func RawN(s string) (string, int) { return raw(s) }
+
 func raw(s string) (string, int) {
 	if !needs(s) {
 		return s, 0

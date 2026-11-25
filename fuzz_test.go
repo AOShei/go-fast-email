@@ -24,6 +24,11 @@ func FuzzExtract(f *testing.F) {
 	// A message with a winmail.dat, not encoded, so that the fuzzer
 	// changes the TNEF stream directly.
 	f.Add(append([]byte("From: a\nContent-Type: application/ms-tnef\n\n"), winmailDat()...))
+	// A calendar and a contact list.
+	f.Add([]byte(calendar))
+	f.Add([]byte(invitation))
+	f.Add([]byte(contacts))
+	f.Add([]byte("BEGIN:VCARD\nN;CHARSET=ISO-8859-1;QUOTED-PRINTABLE:M=FC;=\nJ\nPHOTO:data:image/gif;base64,R0lGODdh\nEND:VCARD"))
 	e := &gofastemail.Extractor{MaxMessageBytes: 1 << 20}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// An input that takes seconds is a bug: crash the worker, so that

@@ -25,7 +25,16 @@ const (
 	NotePreamble	= gofastcore.NoteMIMEPreamble
 	NoteEpilogue	= gofastcore.NoteMIMEEpilogue
 )
+const (
+	MaxComponentDepth	= vobj.MaxDepth
+	MaxContentLineBytes	= vobj.MaxLine
+	MaxComponentItems	= 100_000
+)
+const (
+	AttrComponent = "component"
+)
 const DefaultMaxParts = 1_000_000
+const WarnComponentWithoutText = "email.component_without_text"
 func Extract(ctx context.Context, r io.ReaderAt, size int64, opts *gofastcore.Options) (*gofastcore.Document, error)
 func ExtractFile(ctx context.Context, path string, opts *gofastcore.Options) (*gofastcore.Document, error)
 
