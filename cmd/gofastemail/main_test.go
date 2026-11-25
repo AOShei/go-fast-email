@@ -52,6 +52,57 @@ func TestRun(t *testing.T) {
 	}
 }
 
+// TestInvitation: an invitation's text/calendar alternative becomes a
+// calendar child with its blocks, and a directory's .ics and .vcf files
+// are read.
+func TestInvitation(t *testing.T) {
+	dir := t.TempDir()
+	ics := "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:u1\r\nSUMMARY:Review\r\nDTSTART:20261201T090000Z\r\nDESCRIPTION:Bring notes.\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	eml := "From: a@example.com\nSubject: Invitation\nContent-Type: multipart/alternative; boundary=b\n\n" +
+		"--b\nContent-Type: text/plain\n\nYou are invited.\n" +
+		"--b\nContent-Type: text/calendar; charset=utf-8; method=REQUEST\n\n" + ics + "--b--\n"
+	for name, data := range map[string]string{"a.eml": eml, "b.ics": ics, "c.vcf": "BEGIN:VCARD\nFN:Ann\nEND:VCARD\n", "d.txt": "x"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var out, errs bytes.Buffer
+	if code := run(context.Background(), []string{filepath.Join(dir, "a.eml")}, &out, &errs); code != 0 {
+		t.Fatalf("exit %d: %s", code, errs.String())
+	}
+	var doc gofastcore.Document
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Children) != 1 {
+		t.Fatalf("%d children", len(doc.Children))
+	}
+	c := doc.Children[0]
+	if c.Source.Format != "ics" || len(c.Parts) != 1 {
+		t.Fatalf("child %+v", c.Source)
+	}
+	var got []string
+	for _, b := range c.Parts[0].Blocks {
+		got = append(got, b.Kind.String()+": "+b.Text+" #"+b.Loc.Anchor)
+	}
+	want := []string{"heading: Review #u1", "paragraph: Start: 2026-12-01T09:00:00Z #u1", "paragraph: Bring notes. #u1"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("child blocks %q", got)
+	}
+	out.Reset()
+	if code := run(context.Background(), []string{"-format", "text", dir}, &out, &errs); code != 0 {
+		t.Fatalf("exit %d: %s", code, errs.String())
+	}
+	for _, s := range []string{"==> " + filepath.Join(dir, "b.ics"), "==> " + filepath.Join(dir, "c.vcf"), "Ann"} {
+		if !strings.Contains(out.String(), s) {
+			t.Errorf("no %q in\n%s", s, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "d.txt") {
+		t.Error("d.txt read from the directory")
+	}
+}
+
 func TestDisplayFlag(t *testing.T) {
 	cases := []struct {
 		value string
