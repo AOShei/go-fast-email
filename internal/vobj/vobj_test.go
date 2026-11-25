@@ -93,7 +93,7 @@ func TestQuotedPrintableSoftBreakBoundary(t *testing.T) {
 		}
 	}
 	if want := []string{"a=", "b=", "c=\nEND:Y"}; !reflect.DeepEqual(got, want) || pr.SoftBreakEnds != 2 {
-		t.Errorf("values %q, SoftBreakEnds %d; want %q, 2",got, pr.SoftBreakEnds, want)
+		t.Errorf("values %q, SoftBreakEnds %d; want %q, 2", got, pr.SoftBreakEnds, want)
 	}
 }
 
