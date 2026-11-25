@@ -413,3 +413,23 @@ func TestDispatcherCharset(t *testing.T) {
 		t.Fatalf("declared: %q", doc.Text())
 	}
 }
+
+// TestDispatcherCalendarCharset: the charset parameter of a text/calendar
+// or vCard part is the set of its values that declare none; a value's own
+// CHARSET wins.
+func TestDispatcherCalendarCharset(t *testing.T) {
+	ics := "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nSUMMARY:caf\xe9\r\nDESCRIPTION;CHARSET=windows-1250:\xe8aj\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	for _, mt := range []string{"text/calendar; charset=windows-1252; method=REQUEST", "text/vcard; charset=windows-1252"} {
+		src := ics
+		if strings.HasPrefix(mt, "text/vcard") {
+			src = "BEGIN:VCARD\r\nFN:caf\xe9\r\nNOTE;CHARSET=windows-1250:\xe8aj\r\nEND:VCARD\r\n"
+		}
+		doc, err := dispatcher(&gofastemail.Extractor{Charset: "koi8-r"})(context.Background(), "invite.ics", mt, strings.NewReader(src), int64(len(src)), &gofastcore.Options{})
+		if err != nil {
+			t.Fatalf("%s: %v", mt, err)
+		}
+		if text := doc.Text(); !strings.Contains(text, "café") || !strings.Contains(text, "čaj") {
+			t.Errorf("%s: %q", mt, text)
+		}
+	}
+}

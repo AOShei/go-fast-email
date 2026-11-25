@@ -257,8 +257,17 @@ func dispatcher(extractor *gofastemail.Extractor) gofastcore.ChildFunc {
 			return doc, err
 		}
 		switch t {
-		case "message/rfc822", "message/global", "application/vnd.ms-outlook",
-			"text/calendar", "application/ics", "text/x-vcalendar", "text/vcard", "text/x-vcard", "text/directory":
+		case "message/rfc822", "message/global", "application/vnd.ms-outlook":
+			return extractor.Extract(ctx, r, size, o)
+		case "text/calendar", "application/ics", "text/x-vcalendar", "text/vcard", "text/x-vcard", "text/directory":
+			// A calendar or contact list declares its set per value
+			// (CHARSET); the message's charset parameter is the set of
+			// the values that declare none, as -charset is.
+			if cs := charsetOf(mimeType); cs != "" {
+				e := *extractor
+				e.Charset = cs
+				return e.Extract(ctx, r, size, o)
+			}
 			return extractor.Extract(ctx, r, size, o)
 		case "text/html", "application/xhtml+xml":
 			return text(&gofasthtml.Extractor{Format: "html", Charset: charsetOf(mimeType)})
