@@ -209,7 +209,16 @@ func TestReviewVobjTypeValuesQuadratic(t *testing.T) {
 		return time.Since(start)
 	}
 	run(1000) // warm up
-	small, large := run(10_000), run(40_000)
+	// The fastest of three runs each, so that a busy machine's pauses do
+	// not decide the ratio.
+	best := func(n int) time.Duration {
+		d := run(n)
+		for range 2 {
+			d = min(d, run(n))
+		}
+		return d
+	}
+	small, large := best(10_000), best(40_000)
 	if large > 8*small {
 		t.Errorf("10,000 TYPE values: %v; 40,000: %v (%.1f times)", small, large, float64(large)/float64(small))
 	}
