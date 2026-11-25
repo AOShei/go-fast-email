@@ -35,7 +35,7 @@ const (
 
 // WarnComponentWithoutText: components of a calendar or contact list
 // have no text at all (no summary, no details, no description, no
-// attachment), so they give no block and their properties, which would be
+// attachment, no HTML description), so they give no block and their properties, which would be
 // in the attributes of their first block, are not in the output. The
 // message gives the count and the kinds. Info.
 const WarnComponentWithoutText = "email.component_without_text"
@@ -296,6 +296,23 @@ func (v *vstate) pieces(p *vobj.Property, sep byte) []string {
 	return parts
 }
 
+// structured returns a structured value whose components are lists (N):
+// split at ";", each component split at ",", both before unescaping, so
+// an escaped separator is content. Each value is unescaped and made one
+// line.
+func (v *vstate) structured(p *vobj.Property) [][]string {
+	comps := vobj.Split(v.str(p), ';')
+	out := make([][]string, len(comps))
+	for i, s := range comps {
+		vals := vobj.Split(s, ',')
+		for j, x := range vals {
+			vals[j] = v.line(vobj.Unescape(x))
+		}
+		out[i] = vals
+	}
+	return out
+}
+
 // line makes text one line, counting the control characters removed.
 func (v *vstate) line(s string) string { return v.m.line(s) }
 
@@ -318,13 +335,33 @@ func (a *attrs) add(key, value string) {
 	a.vals[key] = append(a.vals[key], value)
 }
 
-// prop adds a property as written, after unescaping (base64 data stays as
-// written).
-func (v *vstate) attr(a *attrs, prefix string, p *vobj.Property) {
+// reserved are the keys this library sets itself in Block.Attrs and
+// Metadata.Extra: a property whose key would be one of them is kept under
+// "property." and its key.
+var reserved = map[string]bool{AttrComponent: true, AttrChildren: true, "cards": true, "timezones": true}
+
+// attrKey returns the key of a property in the attributes: its name in
+// lower case ("unnamed" for a line with no name), after its group if it
+// has one ("item1.x-abrelatednames"), or "property." and that where it
+// would be one of the library's keys.
+func attrKey(p *vobj.Property) string {
 	key := strings.ToLower(p.Name)
 	if key == "" {
 		key = "unnamed"
 	}
+	if p.Group != "" {
+		key = strings.ToLower(p.Group) + "." + key
+	}
+	if reserved[key] {
+		key = "property." + key
+	}
+	return key
+}
+
+// attr adds a property as written, after unescaping (base64 data stays as
+// written).
+func (v *vstate) attr(a *attrs, prefix string, p *vobj.Property) {
+	key := attrKey(p)
 	value := p.Value
 	if p.Encoding() != "B" {
 		value = v.text(p)
@@ -332,6 +369,39 @@ func (v *vstate) attr(a *attrs, prefix string, p *vobj.Property) {
 		value = clean.Raw(value)
 	}
 	a.add(prefix+key, value)
+}
+
+// params adds the parameters of a property, used in the text or not, under
+// the property's key, a dot and the parameter's name in lower case
+// ("attendee.partstat"); several values of one parameter are joined by
+// "," as written. ENCODING and CHARSET, instructions for decoding, are
+// left out, and TYPE where typed (its values are in the details text).
+func (v *vstate) params(a *attrs, prefix string, p *vobj.Property, typed bool) {
+	if len(p.Params) == 0 {
+		return
+	}
+	base := prefix + attrKey(p) + "."
+	for _, q := range p.Params {
+		switch q.Name {
+		case "ENCODING", "CHARSET":
+			continue
+		case "TYPE":
+			if typed {
+				continue
+			}
+		}
+		name := strings.ToLower(clean.Line(q.Name))
+		if name == "" {
+			name = "unnamed"
+		}
+		s := strings.Join(q.Values, ",")
+		if !utf8.ValidString(s) {
+			s, _ = charset.DecodeDefault(p.Param("CHARSET"), v.m.def, []byte(s))
+		}
+		t, n := clean.RawN(s)
+		v.m.controls += n
+		a.add(base+name, t)
+	}
 }
 
 // span is the Loc of a property or a component.
@@ -482,7 +552,8 @@ func (v *vstate) event1(c *comp) {
 	var a attrs
 	used := make([]bool, len(c.props))
 
-	// The heading: the first SUMMARY.
+	// The heading: the first SUMMARY that is not empty (an empty one is
+	// kept in the attributes).
 	for i, p := range c.props {
 		if p.Name != "SUMMARY" {
 			continue
@@ -490,8 +561,8 @@ func (v *vstate) event1(c *comp) {
 		if t := gofastcore.ExpandLigatures(v.line(v.text(p))); t != "" {
 			used[i] = true
 			v.block(gofastcore.Block{Kind: gofastcore.KindHeading, Level: 1, Text: t, Loc: vloc(p.Offset, p.Length, anchor)})
+			break
 		}
-		break
 	}
 
 	// The details.
@@ -537,6 +608,7 @@ func (v *vstate) event1(c *comp) {
 		}
 		var trigger, desc string
 		for _, p := range s.props {
+			v.params(&a, "alarm.", p, false)
 			switch p.Name {
 			case "TRIGGER":
 				if trigger == "" {
@@ -579,14 +651,25 @@ func (v *vstate) event1(c *comp) {
 	// Embedded documents: the HTML description, attachments.
 	first := len(v.r.doc.Children)
 	m.attached = m.attached[:0]
+	// names: the attachments and the HTML descriptions, in file order,
+	// for a component with no other block.
+	var names []string
+	alt := false
 	for i, p := range c.props {
+		at := len(m.attached)
 		switch {
 		case p.Name == "X-ALT-DESC" && strings.EqualFold(strings.TrimSpace(p.Param("FMTTYPE")), "text/html"):
 			used[i] = true
 			if hasDesc {
 				v.alts++
 			}
+			n := len(v.r.doc.Children)
 			v.r.child(m, "", "text/html; charset=utf-8", []byte(vobj.Unescape(v.str(p))), false)
+			if len(v.r.doc.Children) > n {
+				// Named as an attachment with no name is: by its type.
+				names = append(names, "(text/html)")
+				alt = true
+			}
 		case p.Name == "ATTACH" && (p.Encoding() == "B" || strings.EqualFold(p.Param("VALUE"), "BINARY")):
 			used[i] = true
 			name := p.Param("X-FILENAME")
@@ -601,10 +684,16 @@ func (v *vstate) event1(c *comp) {
 		case p.Name == "ATTACH":
 			v.external("ATTACH", strings.TrimSpace(p.Value))
 		}
+		names = append(names, m.attached[at:]...)
 	}
 	var children []int
 	for n := first; n < len(v.r.doc.Children); n++ {
 		children = append(children, n)
+	}
+	if alt && len(m.part.Blocks) == from {
+		// The HTML description is the component's only text: it is
+		// named on the line, so that the component has a block.
+		m.attached = append(m.attached[:0], names...)
 	}
 	if len(m.attached) > 0 {
 		extra := "Attachments: " + strings.Join(m.attached, ", ")
@@ -627,6 +716,7 @@ func (v *vstate) event1(c *comp) {
 		if !used[i] {
 			v.attr(&a, "", p)
 		}
+		v.params(&a, "", p, false)
 	}
 	v.finishItem(c, from, &a, children)
 	for _, s := range nested {
@@ -671,6 +761,7 @@ func (v *vstate) card(c *comp) {
 	from := len(m.part.Blocks)
 	var a attrs
 	used := make([]bool, len(c.props))
+	typed := make([]bool, len(c.props)) // TYPE values written in the details
 
 	// Apple's labels of groups.
 	labels := map[string]string{}
@@ -705,11 +796,13 @@ func (v *vstate) card(c *comp) {
 				case "FN":
 					t = v.line(v.text(p))
 				case "N":
-					n := v.pieces(p, ';')
+					n := v.structured(p)
 					var words []string
 					for _, k := range []int{3, 1, 2, 0, 4} {
-						if k < len(n) && n[k] != "" {
-							words = append(words, strings.Join(filled(strings.Split(n[k], ",")), " "))
+						if k < len(n) {
+							if w := strings.Join(filled(n[k]), " "); w != "" {
+								words = append(words, w)
+							}
 						}
 					}
 					t = strings.Join(words, " ")
@@ -751,10 +844,13 @@ func (v *vstate) card(c *comp) {
 				continue
 			}
 			used[i] = true
+			typed[i] = true
 			var types []string
+			seen := map[string]bool{}
 			for _, ty := range p.ParamValues("TYPE") {
 				for _, x := range strings.Split(ty, ",") {
-					if x = strings.ToLower(v.line(x)); x != "" && !slices.Contains(types, x) {
+					if x = strings.ToLower(v.line(x)); x != "" && !seen[x] {
+						seen[x] = true
 						types = append(types, x)
 					}
 				}
@@ -762,7 +858,7 @@ func (v *vstate) card(c *comp) {
 			if g := strings.ToLower(p.Group); g != "" {
 				if lb, ok := labels[g]; ok {
 					used[labelAt[g]] = true
-					if !slices.Contains(types, lb) {
+					if !seen[lb] {
 						types = append(types, lb)
 					}
 				}
@@ -810,6 +906,7 @@ func (v *vstate) card(c *comp) {
 		if !used[i] {
 			v.attr(&a, "", p)
 		}
+		v.params(&a, "", p, typed[i])
 	}
 	v.finishItem(c, from, &a, nil)
 	for _, s := range c.subs {
@@ -906,6 +1003,7 @@ func (v *vstate) finish(pr vobj.Problems, what string) {
 	m, md := v.m, &v.r.doc.Metadata
 	var a attrs
 	for _, p := range v.meta {
+		v.params(&a, "", p, false)
 		switch {
 		case v.cal && p.Name == "X-WR-CALNAME" && md.Title == "":
 			md.Title = gofastcore.ExpandLigatures(v.line(v.text(p)))

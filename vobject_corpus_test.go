@@ -310,6 +310,13 @@ func nothingDropped(t *testing.T, label string, src []byte, doc *gofastcore.Docu
 			if key == "" {
 				key = "unnamed"
 			}
+			if p.Group != "" {
+				key = strings.ToLower(p.Group) + "." + key
+			}
+			switch key {
+			case "component", "children", "cards", "timezones":
+				key = "property." + key
+			}
 			if _, ok := first.Attrs[prefix+key]; ok {
 				return
 			}

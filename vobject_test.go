@@ -100,14 +100,14 @@ func TestCalendar(t *testing.T) {
 		t.Errorf("extra %q", md.Extra)
 	}
 	equal(t, "blocks", dump(calendar, &doc.Parts[0]), []string{
-		`heading: Planning ; review @"SUMMARY:Planning \\; review" #ev-1@example.com [alarm.action="DISPLAY"] [component="vevent"] [dtstamp="20261120T090000Z"] [exdate="20261202T100000\n20261209T100000"] [uid="ev-1@example.com"] [x-microsoft-cdo-busystatus="BUSY"]`,
+		`heading: Planning ; review @"SUMMARY:Planning \\; review" #ev-1@example.com [alarm.action="DISPLAY"] [attendee.cn="Bob, B."] [attendee.partstat="ACCEPTED"] [component="vevent"] [dtstamp="20261120T090000Z"] [dtstart.tzid="Europe/Paris"] [exdate="20261202T100000\n20261209T100000"] [organizer.cn="Ann Lee"] [uid="ev-1@example.com"] [x-microsoft-cdo-busystatus="BUSY"]`,
 		"paragraph: Start: 2026-11-25T10:00:00 (Europe/Paris)\nEnd: 2026-11-25T11:00:00Z\nRepeats: FREQ=WEEKLY;COUNT=3\nLocation: Room 4, floor 2\n" +
 			"Organizer: Ann Lee <ann@example.com>\nAttendees: Bob, B. <bob@example.com>, cy@example.com\nStatus: CONFIRMED\nCategories: Work, Plans, Q4\nAlarm: -PT15M Soon" +
 			fmt.Sprintf(" @%q #ev-1@example.com", calendar[strings.Index(calendar, "BEGIN:VEVENT"):strings.Index(calendar, "END:VEVENT")+10]),
 		`paragraph: First paragraph` + "\n" + `second line. @"DESCRIPTION:First paragraph\\nsecond line.\\n\\nSecond para\r\n graph." #ev-1@example.com`,
 		`paragraph: Second paragraph. @"DESCRIPTION:First paragraph\\nsecond line.\\n\\nSecond para\r\n graph." #ev-1@example.com`,
 		`paragraph: A comment @"COMMENT:A comment" #ev-1@example.com`,
-		"paragraph: Due: 2026-12-01\nStatus: NEEDS-ACTION @\"BEGIN:VTODO\\r\\nDUE;VALUE=DATE:20261201\\r\\nSTATUS:NEEDS-ACTION\\r\\nEND:VTODO\" [component=\"vtodo\"]",
+		"paragraph: Due: 2026-12-01\nStatus: NEEDS-ACTION @\"BEGIN:VTODO\\r\\nDUE;VALUE=DATE:20261201\\r\\nSTATUS:NEEDS-ACTION\\r\\nEND:VTODO\" [component=\"vtodo\"] [due.value=\"DATE\"]",
 	})
 	equal(t, "warnings", wlist(doc.Parts[0].Warnings), []string{
 		"email.component_without_text info: components with no text give no block, so their properties are not in the output: 1 (vtodo)",
@@ -135,7 +135,7 @@ func TestOutlookInvitation(t *testing.T) {
 	doc := extract(t, invitation, &gofastcore.Options{Child: dispatcher(&got)})
 	uid := " #040000008200E00074C5B7101A82E008"
 	equal(t, "blocks", dump(invitation, &doc.Parts[0]), []string{
-		`heading: Kick-off @"SUMMARY:Kick-off"` + uid + ` [attach="https://example.com/files/plan.pdf"] [children="0,1"] [class="PUBLIC"] [component="vevent"] [uid="040000008200E00074C5B7101A82E008"]`,
+		`heading: Kick-off @"SUMMARY:Kick-off"` + uid + ` [attach="https://example.com/files/plan.pdf"] [attach.fmttype="text/plain"] [attach.value="BINARY"] [attach.x-filename="agenda.txt"] [children="0,1"] [class="PUBLIC"] [component="vevent"] [uid="040000008200E00074C5B7101A82E008"] [x-alt-desc.fmttype="text/html"]`,
 		"paragraph: Start: 2026-12-01T09:00:00Z\nAttachments: agenda.txt" +
 			fmt.Sprintf(" @%q", invitation[strings.Index(invitation, "BEGIN:VEVENT"):strings.Index(invitation, "END:VEVENT")+10]) + uid,
 		`paragraph: Agenda attached. @"DESCRIPTION:Agenda attached.\\n"` + uid,
@@ -196,7 +196,7 @@ func TestContacts(t *testing.T) {
 		return fmt.Sprintf(" @%q", contacts[at:at+strings.Index(contacts[at:], "END:VCARD")+9])
 	}
 	equal(t, "blocks", dump(contacts, &doc.Parts[0]), []string{
-		`heading: Mr. John Richter James Doe Sr. @"FN:Mr. John Richter James Doe Sr." #card-1 [component="vcard"] [n="Doe;John;Richter,James;Mr.;Sr."] [prodid="-//Apple Inc.//iOS 5.0.1//EN"] [uid="card-1"] [version="3.0"] [x-socialprofile="x"]`,
+		`heading: Mr. John Richter James Doe Sr. @"FN:Mr. John Richter James Doe Sr." #card-1 [bday.value="date"] [component="vcard"] [n="Doe;John;Richter,James;Mr.;Sr."] [prodid="-//Apple Inc.//iOS 5.0.1//EN"] [uid="card-1"] [version="3.0"] [x-socialprofile="x"] [x-socialprofile.type="twitter"]`,
 		"paragraph: Organization: IBM, Accounting\nTitle: Money Counter\nEmail: john.doe@ibm.com (internet, pref)\nPhone: 905-555-1234 (cell, voice, pref)\nPhone: 905-222-1234 (assistantphone)\n" +
 			"Address: Silicon Alley 5, New York, NY, 12345, USA (home)\nURL: http://example.com (My site)\nBirthday: 2012-06-06" + card(0) + " #card-1",
 		`paragraph: Met at the fair. @"NOTE:Met at the fair." #card-1`,
