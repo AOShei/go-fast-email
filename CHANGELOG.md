@@ -28,7 +28,31 @@
   `text/x-vcalendar`, `text/vcard`, `text/x-vcard` and `text/directory`
   (and octet-stream ones with those extensions) are read by this
   library, so an invitation's `text/calendar` alternative is a calendar
-  child with its blocks.
+  child with its blocks. The part's `charset` parameter is passed on as
+  `Extractor.Charset` for that child (the set of values with no `CHARSET`
+  of their own).
+- **Calendars and contacts, after review:**
+  - Every parameter of every property is kept in the attributes, under
+    `<property>.<parameter>` (`attendee.partstat`, Apple's
+    `x-apple-structured-location.x-address`, vCard 4 `adr.label`);
+    repeats joined by `\n`. Not kept: `ENCODING`, `CHARSET`, and TYPE
+    values written in a card's details line.
+  - A grouped property's key keeps its group (`item1.x-abrelatednames`).
+    A property whose key would be `component`, `children`, `cards` or
+    `timezones` is under `property.` and its key.
+  - The heading is the first non-empty `SUMMARY`.
+  - A component whose only text is its HTML description gets its details
+    paragraph (`Attachments: (text/html)`) with its attributes and
+    `Attrs["children"]`.
+  - `N` is split at `;` and `,` before unescaping (`O\,Brien` is
+    `O,Brien`).
+  - A quoted-printable soft break does not continue onto a `BEGIN:` line
+    or the `END:` of an open component (`input.repaired`).
+  - A `VCALENDAR` nested in an event counts in the event's
+    `MaxComponentItems`; components left open when the file ends inside
+    a skipped one are counted as missing their `END`; a control
+    character in a component's name is removed before the warning and
+    `Attrs["component"]`; TYPE values are collected in linear time.
 
 ## v0.2.1 (2026-11-24)
 

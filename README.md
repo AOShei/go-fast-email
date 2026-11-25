@@ -84,7 +84,7 @@ one that reads, as children:
 | Media type | Read by |
 |---|---|
 | `message/rfc822`, `message/global`, `application/vnd.ms-outlook` | this library (attached messages) |
-| `text/calendar`, `application/ics`, `text/x-vcalendar`, `text/vcard`, `text/x-vcard`, `text/directory` | this library (calendars, such as an invitation's `text/calendar` alternative, and contact lists) |
+| `text/calendar`, `application/ics`, `text/x-vcalendar`, `text/vcard`, `text/x-vcard`, `text/directory` | this library (calendars, such as an invitation's `text/calendar` alternative, and contact lists); the part's `charset` parameter is the child's `Extractor.Charset`, the set of values with no `CHARSET` of their own |
 | `text/html`, `application/xhtml+xml` | go-fast-html, format `html` |
 | `text/markdown` | go-fast-html, format `md` |
 | `text/plain` (alternatives and attachments) | go-fast-html, format `txt` |
@@ -310,8 +310,10 @@ Outlook write them):
 
 - Lines end with CRLF, LF or CR. A line end followed by one space or tab
   is removed (unfolding). A quoted-printable value (vCard 2.1, vCalendar
-  1.0) continues across a line that ends with `=`, whatever the next line
-  begins with.
+  1.0) continues across a line that ends with `=` (a soft line break),
+  except onto a line that begins `BEGIN:` or is `END:` and the name of an
+  open component (in any case): phone exporters end a value with `=`, and
+  that line ends the value instead (counted as `input.repaired`).
 - `[group.]NAME[;PARAM=value[,value]...]:value`; names in any case;
   quoted parameter values; RFC 6868 caret escapes; vCard 2.1 parameters
   without a name (`TEL;CELL;PREF`) are TYPE values, and
@@ -323,7 +325,10 @@ Outlook write them):
   none (`Extractor.Charset`, else the set the bytes are certainly in, with
   `text.encoding_detected`).
 - TEXT values are unescaped (`\\`, `\;`, `\,`, `\n`, `\N`); `N`, `ADR`,
-  `ORG` and `GENDER` are split at unescaped `;`, lists at unescaped `,`.
+  `ORG` and `GENDER` are split at unescaped `;`, lists (`CATEGORIES`,
+  `NICKNAME`, the components of `N`) at unescaped `,`, always before
+  unescaping, so an escaped separator is content (`N:O\,Brien;Pat` is
+  `Pat O,Brien`).
 - Recovery, each reported once per document with a count as
   `input.repaired` (info): an `END` that matches no open component is
   skipped; a component with no `END` ends where the component around it
@@ -370,20 +375,43 @@ nested in it other than alarms (`AVAILABLE`), gives:
 The first block of a component carries in `Attrs` every property not
 used above, under its lowercase name, as written after unescaping (a
 repeated name joined by `\n`; base64 data as written): `uid`, `dtstamp`,
-`exdate`, `x-...`, an `ATTACH` URI, an empty value. A `VALARM`'s
+`exdate`, `x-...`, an `ATTACH` URI, an empty value. A grouped property
+keeps its group in its key (`item1.x-abrelatednames`), so it lines up
+with the group's other properties (`item1.x-ablabel`). A `VALARM`'s
 properties other than those used in its line are there as
 `alarm.<name>` (`alarm.action`). `Attrs["component"]` is the component's
 kind (`vevent`), and `Attrs["children"]` the indexes in
-`Document.Children` of the documents that came from it. The parameters
-of a property are not kept (`TZID` and `CN` are used as above).
+`Document.Children` of the documents that came from it. A property whose
+key would be one of the library's own (`component`, `children`, and in
+`Extra` `cards` and `timezones`) is kept under `property.` and its key
+(`property.component`).
+
+Every parameter of every property, used in the text or not, is there
+too, under the property's key, a dot and the parameter's lowercase name:
+`attendee.partstat`, `attendee.cn`, `dtstart.tzid`,
+`x-apple-structured-location.x-address`, `adr.label`,
+`alarm.trigger.related`. Several values of one parameter are joined by
+`,` as written, a parameter given more than once (two attendees) by
+`\n`; values are as the parameter gives them, with RFC 6868's `^n`, `^^`
+and `^'` decoded. `ENCODING` and `CHARSET` (instructions for decoding)
+are not kept, nor a card's `TYPE` values written in its details line.
+The parameters of a calendar's own properties are in `Extra` the same
+way.
 
 Every block has `Loc.Anchor` = the component's `UID`, and
 `Loc.Offset`/`Length` = the bytes it came from: the heading, `SUMMARY`'s
 line(s); the details, the component from `BEGIN` to `END`; a paragraph,
 its `DESCRIPTION`'s or `COMMENT`'s lines.
 
+The heading is the first `SUMMARY` that is not empty; an empty one is in
+the attributes. A component whose only text is an embedded document (an
+HTML description, inline attachments) gets its details paragraph with
+the line `Attachments: ...`, the HTML description named `(text/html)`,
+so its attributes and `Attrs["children"]` have a block.
+
 A component with no text at all (no summary, no details, no description,
-no attachment) gives no block, so its attributes have no place: such
+no attachment, no HTML description) gives no block, so its attributes
+have no place: such
 components are counted in one `email.component_without_text` warning
 (info) with their kinds. The part has `part.no_text` only when the whole
 calendar gives no block.
@@ -413,8 +441,11 @@ order (a card nested in one, a vCard 2.1 `AGENT`, after it), gives:
    URI: `input.external_reference`, and the URI in the attributes.
 
 Every other property (`uid`, `rev`, `prodid`, `version`, `key`, `n` when
-FN is the heading, `x-...`) is in the attributes of the card's first
-block as for a calendar, with `Attrs["component"] = "vcard"`;
+FN is the heading, `x-...`; a grouped one under its group,
+`item1.x-abrelatednames`, beside its `item1.x-ablabel`), and every
+parameter (`adr.label`, `tel.pref`; TYPE values not in the details
+line), is in the attributes of the card's first block as for a
+calendar, with `Attrs["component"] = "vcard"`;
 `Loc.Anchor` and `Loc.Offset`/`Length` as for a calendar (the details
 paragraph spans the card).
 
@@ -522,7 +553,8 @@ count, where it cuts:
   content line, unfolded, is cut at 1 MiB (`MaxContentLineBytes`, which
   also bounds an inline photo or attachment); one component, and the
   calendar's own properties, hold at most 100,000 properties and nested
-  components (`MaxComponentItems`). The attributes of a component count
+  components (`MaxComponentItems`; a `VCALENDAR` nested inside an event
+  is one of the event's components, counted with it). The attributes of a component count
   in the text budget.
 
 Bounds on data used only inside the library, which lose nothing that
