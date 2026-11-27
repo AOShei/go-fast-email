@@ -16,9 +16,8 @@ import (
 	"strings"
 
 	"github.com/AOShei/go-fast-core"
-	"github.com/AOShei/go-fast-email/internal/charset"
+	"github.com/AOShei/go-fast-core/rfc822"
 	"github.com/AOShei/go-fast-email/internal/clean"
-	"github.com/AOShei/go-fast-email/internal/rfc822"
 	"github.com/AOShei/go-fast-email/internal/textbody"
 )
 
@@ -269,7 +268,7 @@ func things(n int, noun string) string {
 }
 
 func (m *message) charsetReport() rfc822.CharsetFunc {
-	return func(label string, res charset.Result) {
+	return func(label string, res rfc822.CharsetResult) {
 		if res.Detected != "" {
 			m.warnEach(gofastcore.SeverityWarning, gofastcore.WarnTextEncodingDetected, "detected", res.Detected, res.Detected,
 				fmt.Sprintf("text that declares no character set and is not UTF-8 was read as %s, recognised from its bytes; if that is wrong, give the set with Extractor.Charset (command: -charset)", res.Detected), false,
@@ -854,7 +853,7 @@ const maxCharsetLabel = 63
 // embedded document's extractor needs to read text. A name longer than
 // maxCharsetLabel is not passed on, and that is reported.
 func (m *message) withCharset(mediatype string, params map[string]string) string {
-	cs := charset.Normalize(params["charset"])
+	cs := rfc822.NormalizeCharset(params["charset"])
 	if cs == "" || !rfc822.Token(cs) {
 		return mediatype
 	}
@@ -873,12 +872,12 @@ func (r *reader) textBody(m *message, params map[string]string, data []byte) {
 		return
 	}
 	label := params["charset"]
-	text, res := charset.DecodeDefault(label, m.def, data)
+	text, res := rfc822.DecodeCharsetDefault(label, m.def, data)
 	if !res.Known || res.Replaced || res.Detected != "" {
 		if label == "" {
 			label = "us-ascii"
 		}
-		m.charsetReport()(charset.Normalize(label), res)
+		m.charsetReport()(rfc822.NormalizeCharset(label), res)
 	}
 	text = m.text(text)
 	o := textbody.Options{
@@ -970,7 +969,7 @@ func (r *reader) stored(m *message, kind string, raw []byte) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return
 	}
-	text, _ := charset.DecodeDefault("", m.def, raw)
+	text, _ := rfc822.DecodeCharsetDefault("", m.def, raw)
 	text = strings.TrimSpace(m.text(text))
 	if text == "" {
 		return

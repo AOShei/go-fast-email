@@ -13,7 +13,7 @@ import (
 
 func detectText(t *testing.T, name string, n int) string {
 	t.Helper()
-	b, err := os.ReadFile("internal/charset/testdata/detect/" + name)
+	b, err := os.ReadFile("testdata/encoding/" + name)
 	if err != nil {
 		t.Fatal(err)
 	}

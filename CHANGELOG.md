@@ -1,11 +1,32 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 (2026-11-27)
 
-- **go-fast-core v0.1.10** (was v0.1.4). Of the core code this module
-  uses, the only change since v0.1.4 is two new stored kinds:
-  `gofastemail -stored=` now also accepts `shape_data` and
-  `linked_data`, which Visio drawings in go-fast-ooxml will use.
+- **go-fast-core's shared packages** (core v0.1.13, was v0.1.4 in the
+  last release): `internal/rfc822` and `internal/charset` moved to its
+  `rfc822` (with mail's reading of character sets: US-ASCII text that is
+  valid UTF-8 is UTF-8, `utf-16` without a mark is big-endian), character
+  sets are decoded by its `charset`, compound files (`.msg`) read by its
+  `cfb`, and strings cleaned by its `clean`. New with them:
+  - **More character sets are decoded:** KOI8-R, KOI8-U, ISO-8859-2 to
+    16, IBM866 and x-mac-cyrillic (they were U+FFFD with
+    `text.unmapped_glyphs`), and Big5 has the HKSCS pairs code page 950
+    leaves undefined (`big5-hkscs` was read as plain 950).
+  - **GBK byte 0x80 is the euro sign** (it was U+FFFD).
+  - **A byte 0x80 to 0x9F a single-byte code page leaves undefined** is
+    the C1 control of the same value, as the WHATWG Encoding Standard
+    has it, which the text conventions remove
+    (`text.control_characters_removed`); it was U+FFFD.
+  - **Line breaks as in every library:** a form feed, vertical tab, NEL
+    (U+0085) or the line and paragraph separators (U+2028, U+2029) is a
+    line break; the first three were removed and counted, the last two
+    kept.
+  The corpus (eml, mbox, msg, ics, vcf; dev and held-out) gives the same
+  output but for three files: a dev vCard whose `FBURL` value ends in a
+  form feed now ends in a line break, and one held-out ics and one msg.
+  Reading takes 8.4 % fewer instructions over the dev files.
+- `gofastemail -stored=` also accepts `shape_data` and `linked_data`, the
+  stored kinds go-fast-ooxml's Visio drawings use (core v0.1.10).
 
 ## v0.3.0 (2026-11-25)
 
