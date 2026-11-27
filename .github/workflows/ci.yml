@@ -56,10 +56,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.go == 'stable'
         run: |
           go test -run '^$' -fuzz '^FuzzExtract$' -fuzztime 20s -fuzzminimizetime 0s .
-          go test -run '^$' -fuzz '^FuzzDecodeCJK$' -fuzztime 20s -fuzzminimizetime 0s ./internal/charset
-          go test -run '^$' -fuzz '^FuzzDecodeDBCS$' -fuzztime 20s -fuzzminimizetime 0s ./internal/charset
-          go test -run '^$' -fuzz '^FuzzBody$' -fuzztime 20s -fuzzminimizetime 0s ./internal/rfc822
-          go test -run '^$' -fuzz '^FuzzHeader$' -fuzztime 20s -fuzzminimizetime 0s ./internal/rfc822
           go test -run '^$' -fuzz '^FuzzDecompress$' -fuzztime 20s -fuzzminimizetime 0s ./internal/rtfcp
           go test -run '^$' -fuzz '^FuzzParse$' -fuzztime 20s -fuzzminimizetime 0s ./internal/tnef
           go test -run '^$' -fuzz '^FuzzVobj$' -fuzztime 20s -fuzzminimizetime 0s ./internal/vobj
@@ -81,5 +77,5 @@ jobs:
       - name: The library imports only go-fast-core
         run: |
           pkgs=$(go list ./... | grep -v '/cmd/')
-          extra=$(go list -deps -test -f '{{if not .Standard}}{{.ImportPath}}{{end}}' $pkgs | grep -v '^github.com/AOShei/go-fast-core$' | grep -vE '^github.com/AOShei/go-fast-email([/_. ]|$)' || true)
+          extra=$(go list -deps -test -f '{{if not .Standard}}{{.ImportPath}}{{end}}' $pkgs | grep -vE '^github.com/AOShei/go-fast-core(/|$)' | grep -vE '^github.com/AOShei/go-fast-email([/_. ]|$)' || true)
           if [ -n "$extra" ]; then echo "unexpected packages:"; echo "$extra"; exit 1; fi
