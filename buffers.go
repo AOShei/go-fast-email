@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/AOShei/go-fast-email/internal/rfc822"
+	"github.com/AOShei/go-fast-core/rfc822"
 )
 
 // Memory used while one message is read, and never after, is reused from

@@ -8,7 +8,7 @@ import (
 	"io"
 
 	"github.com/AOShei/go-fast-core"
-	"github.com/AOShei/go-fast-email/internal/charset"
+	"github.com/AOShei/go-fast-core/rfc822"
 	"github.com/AOShei/go-fast-email/internal/clean"
 	"github.com/AOShei/go-fast-email/internal/tnef"
 )
@@ -101,7 +101,7 @@ func (e *Extractor) tnefDocument(ctx context.Context, data []byte, opts *gofastc
 		if _, ok := ap.values[uint32(pidAttachData)<<16|ptBinary]; !ok && a.Data != nil {
 			ap.values[uint32(pidAttachData)<<16|ptBinary] = a.Data
 		}
-		title, _ := charset.DecodeDefault(p.label, m.def, []byte(a.Title))
+		title, _ := rfc822.DecodeCharsetDefault(p.label, m.def, []byte(a.Title))
 		r.outlookAttachment(m, ap, title, func(file string, listed bool) {
 			// An attached message: an object whose data, after the
 			// 16 bytes of its interface id, is a TNEF stream.

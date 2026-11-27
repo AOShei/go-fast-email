@@ -10,9 +10,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/AOShei/go-fast-core"
-	"github.com/AOShei/go-fast-email/internal/charset"
+	"github.com/AOShei/go-fast-core/rfc822"
 	"github.com/AOShei/go-fast-email/internal/clean"
-	"github.com/AOShei/go-fast-email/internal/rfc822"
 	"github.com/AOShei/go-fast-email/internal/textbody"
 	"github.com/AOShei/go-fast-email/internal/vobj"
 )
@@ -268,12 +267,12 @@ func (v *vstate) str(p *vobj.Property) string {
 		return ""
 	}
 	label := p.Param("CHARSET")
-	text, res := charset.DecodeDefault(label, v.m.def, b)
+	text, res := rfc822.DecodeCharsetDefault(label, v.m.def, b)
 	if !res.Known || res.Replaced || res.Detected != "" {
 		if label == "" {
 			label = "us-ascii"
 		}
-		v.m.charsetReport()(charset.Normalize(label), res)
+		v.m.charsetReport()(rfc822.NormalizeCharset(label), res)
 	}
 	return text
 }
@@ -396,7 +395,7 @@ func (v *vstate) params(a *attrs, prefix string, p *vobj.Property, typed bool) {
 		}
 		s := strings.Join(q.Values, ",")
 		if !utf8.ValidString(s) {
-			s, _ = charset.DecodeDefault(p.Param("CHARSET"), v.m.def, []byte(s))
+			s, _ = rfc822.DecodeCharsetDefault(p.Param("CHARSET"), v.m.def, []byte(s))
 		}
 		t, n := clean.RawN(s)
 		v.m.controls += n

@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/AOShei/go-fast-core"
+	"github.com/AOShei/go-fast-core/rfc822"
 	"github.com/AOShei/go-fast-email/internal/clean"
-	"github.com/AOShei/go-fast-email/internal/rfc822"
 )
 
 // DefaultMaxParts bounds the messages read from a mailbox when

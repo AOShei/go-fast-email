@@ -210,7 +210,8 @@ func TestExternalBody(t *testing.T) {
 }
 
 func TestCharsets(t *testing.T) {
-	msg := "From: a@example.com\nSubject: =?koi8-r?b?wcI=?=\nContent-Type: text/plain; charset=euc-jp\n\nab\x82\xa0c"
+	// UTF-7 is not decoded (KOI8-R, which this test used before, is now).
+	msg := "From: a@example.com\nSubject: =?utf-7?b?wcI=?=\nContent-Type: text/plain; charset=euc-jp\n\nab\x82\xa0c"
 	doc := extract(t, msg, nil)
 	p := &doc.Parts[0]
 	if p.Blocks[0].Text != "��" || p.Blocks[2].Text != "ab��c" {
@@ -222,8 +223,12 @@ func TestCharsets(t *testing.T) {
 			msgs = append(msgs, w.Message)
 		}
 	}
-	if len(msgs) != 2 || !strings.Contains(msgs[0], "koi8-r") || !strings.Contains(msgs[1], "euc-jp") {
+	if len(msgs) != 2 || !strings.Contains(msgs[0], "utf-7") || !strings.Contains(msgs[1], "euc-jp") {
 		t.Errorf("warnings %q", msgs)
+	}
+	doc = extract(t, "From: a@example.com\nSubject: =?koi8-r?b?wcI=?=\n\nx", nil)
+	if got := doc.Parts[0].Blocks[0].Text; got != "\u0430\u0431" {
+		t.Errorf("KOI8-R subject %q", got)
 	}
 }
 
@@ -249,13 +254,14 @@ func TestFlowedAndQuotes(t *testing.T) {
 	})
 }
 
-// Control characters are removed by core's text conventions; the
-// invisible characters of R6 are kept (see TestCharactersKept).
+// Control characters are removed by core's text conventions, and a form
+// feed, a page separator, is a line break, as in every go-fast library;
+// the invisible characters of R6 are kept (see TestCharactersKept).
 func TestControlCharacters(t *testing.T) {
 	msg := "From: a@example.com\nSubject: hello\n\nbody\x00 with\x0c controls\r\n"
 	doc := extract(t, msg, nil)
 	p := &doc.Parts[0]
-	if p.Blocks[2].Text != "body with controls" {
+	if p.Blocks[2].Text != "body with\n controls" {
 		t.Errorf("body %q", p.Blocks[2].Text)
 	}
 }

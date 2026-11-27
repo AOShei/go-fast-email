@@ -13,10 +13,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/AOShei/go-fast-core"
-	"github.com/AOShei/go-fast-email/internal/cfb"
-	"github.com/AOShei/go-fast-email/internal/charset"
+	"github.com/AOShei/go-fast-core/cfb"
+	"github.com/AOShei/go-fast-core/rfc822"
 	"github.com/AOShei/go-fast-email/internal/clean"
-	"github.com/AOShei/go-fast-email/internal/rfc822"
 	"github.com/AOShei/go-fast-email/internal/rtfcp"
 	"github.com/AOShei/go-fast-email/internal/textbody"
 )
@@ -211,7 +210,7 @@ func (r *reader) takeRead(m *message, n int64) bool {
 // str returns a string property, Unicode or 8-bit.
 func (p *props) str(id uint16) string {
 	if b, ok := p.read(id, ptUnicode); ok {
-		s, res := charset.DecodeUTF16(b, true)
+		s, res := rfc822.DecodeUTF16(b, true)
 		if res.Replaced {
 			p.m.charsetReport()("utf-16le", res)
 		}
@@ -223,7 +222,7 @@ func (p *props) str(id uint16) string {
 		if p.alt != "" && !utf8.Valid(b) {
 			label = p.alt
 		}
-		s, res := charset.DecodeDefault(label, p.m.def, b)
+		s, res := rfc822.DecodeCharsetDefault(label, p.m.def, b)
 		if !res.Known || res.Replaced || res.Detected != "" {
 			p.m.charsetReport()(label, res)
 		}

@@ -9,18 +9,18 @@ import (
 	"testing"
 
 	"github.com/AOShei/go-fast-core"
+	"github.com/AOShei/go-fast-core/rfc822"
 	"github.com/AOShei/go-fast-email"
-	"github.com/AOShei/go-fast-email/internal/charset"
 	"github.com/AOShei/go-fast-email/internal/msgtest"
 )
 
-// needDBCS skips a test when the generated tables of the double-byte
-// code pages are not in internal/charset/tables (see its README.txt).
+// needDBCS skips a test when go-fast-core's charset does not decode the
+// double-byte code pages (it always does: the tables are embedded).
 func needDBCS(t *testing.T) {
 	t.Helper()
 	for _, l := range []string{"shift_jis", "gbk", "euc-kr", "big5"} {
-		if !charset.Known(l) {
-			t.Skipf("the %s table is not generated; see internal/charset/tables/README.txt", l)
+		if !rfc822.KnownCharset(l) {
+			t.Skipf("%s is not decoded", l)
 		}
 	}
 }

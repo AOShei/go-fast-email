@@ -15,7 +15,7 @@ also uses go-fast-html and go-fast-rtf.
 | 200 | 0.41 s | 26 MB | 0.12 s | 130 MB |
 | 400 | 0.40 s | 39 MB | 0.09 s | 228 MB |
 
-**Status: v0.3.0 (2026-11-25).** How it was built is in
+**Status: v0.4.0 (2026-11-27).** How it was built is in
 [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) (development history);
 the changes are in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -239,62 +239,30 @@ holds the transport headers Outlook keeps, `message-class` and
 
 ### Character sets
 
-UTF-8, US-ASCII, ISO-8859-1, ISO-8859-15, windows-874, windows-1250 to
-1258 and Mac OS Roman are decoded, and UTF-16 in `.msg` files; the same
-code pages where an Outlook message or TNEF stream names one for its 8-bit
-strings. ISO-8859-1, ISO-8859-9 and ISO-8859-11 (TIS-620) are decoded as
-windows-1252, windows-1254 and windows-874, as the WHATWG Encoding
-Standard does. KOI8-R, KOI8-U and the other ISO-8859 parts (2, 3, 4, 5, 6,
-7, 8, 10, 13, 14, 16) are not decoded yet: no table verified against its
-mapping file was at hand. Text labelled US-ASCII, or not labelled, that is
-valid UTF-8 is read as UTF-8. A character set this library does not
-decode is not guessed at: bytes outside ASCII become U+FFFD and the part
-has a `text.unmapped_glyphs` warning that names the set (none when the
-text is all ASCII, since then nothing is lost). The tables' sources are in
-[`NOTICE`](NOTICE).
+Character sets are decoded by go-fast-core's `charset`, the series' shared
+decoder, in headers, encoded words, text/plain bodies and the 8-bit
+strings of `.msg` and TNEF by their code page: UTF-8 and UTF-16, the
+WHATWG Encoding Standard's single-byte encodings (windows-874, windows-1250
+to 1258, Mac OS Roman, ISO-8859-2 to 16, KOI8-R, KOI8-U, IBM866,
+x-mac-cyrillic), Shift_JIS (code page 932), GBK and GB2312 (936), EUC-KR
+(949), Big5 (950, with the HKSCS pairs 950 leaves undefined), GB18030,
+EUC-JP and ISO-2022-JP, by the Encoding Standard's labels and the names
+mail programs use (`cp1251`, `latin9`, ...). ISO-8859-1, ISO-8859-9 and
+ISO-8859-11 (TIS-620) are decoded as windows-1252, windows-1254 and
+windows-874, as the Encoding Standard does. Two readings are mail's own:
+text labelled US-ASCII, or not labelled, that is valid UTF-8 is read as
+UTF-8, and `utf-16` without a byte order mark is big-endian (RFC 2781).
 
-**Text that declares no character set** (a body with no `charset`, header
-text outside encoded words, an Outlook string with no code page), or
-declares US-ASCII, and is not valid UTF-8 is read in the set its bytes are
-**certainly** in, with the warning `text.encoding_detected` naming it:
-UTF-8 with damaged bytes, UTF-16 without a byte order mark, Shift_JIS,
-EUC-KR, GBK, Big5, windows-1251, or windows-1252 for text whose accented
-letters stand alone in words and show nothing of another Latin code page.
-The tests, their thresholds, and how they were measured are go-fast-html's
-(its README, "Text that declares no encoding"; this library has a copy of
-the code, since libraries do not import each other): on Wikipedia text in
-30 languages, no input of 1 KiB or more read in a wrong set. Where no set
-is certain, the bytes outside ASCII are U+FFFD, as before, and
-`text.unmapped_glyphs` says to give the set. `Extractor.Charset` (command:
-`-charset`) gives the set of such text instead of the one recognised from
-its bytes; valid UTF-8 stays UTF-8, and a set the text declares wins. The
-test reads at most 32 KiB of the text, so its time is bounded: 2 to 9 µs
-on 1.5 KiB.
-
-The double-byte code pages are decoded from their generated tables in
-`internal/charset/tables` (see the `README.txt` there): Shift_JIS (code
-page 932; labels `shift_jis`, `sjis`, `ms932`, `windows-31j`, `x-sjis`,
-`csshiftjis`, `ms_kanji`), GBK and GB2312 (936; `gbk`, `gb2312`, `chinese`, `csgb2312`, `gb_2312-80`,
-`iso-ir-58`, `x-gbk`, `cp936`), EUC-KR (949; `euc-kr`, `ks_c_5601-1987`,
-`windows-949`, `cseuckr`, `korean`, `cp949`) and Big5 (950; `big5`,
-`big5-hkscs`, `cn-big5`, `csbig5`, `x-x-big5`, `cp950`), in headers,
-encoded words, text/plain bodies and the 8-bit strings of `.msg` and TNEF
-by their code page. A lead byte without a valid trail byte, or at the end
-of the text, is U+FFFD with the warning above.
-
-GB18030 (`gb18030`, code page 54936), EUC-JP (`euc-jp`,
-`cseucpkdfmtjapanese`, `x-euc-jp`, code page 51932) and ISO-2022-JP
-(`iso-2022-jp`, `csiso2022jp`, code pages 50220 to 50222) are decoded as
-the WHATWG Encoding Standard's decoders do, everywhere the double-byte
-sets are, from the tables `gen/gen_cjk_extra.py` writes. GB18030 has its
-four-byte sequences, supplementary characters included; EUC-JP its
-half-width katakana and JIS X 0212; ISO-2022-JP switches between ASCII,
-JIS-Roman, JIS X 0208 and half-width katakana by escape sequence, and each
-encoded word starts in ASCII. Bytes that make no character are U+FFFD
-with the warning above. The labels `gbk` and `gb2312` stay on code page
-936, which has GB18030's two-byte characters but not its four-byte
-sequences (the Encoding Standard decodes them with the GB18030 decoder).
-KOI8 is not decoded and keeps the warning.
+Where a set leaves a byte or a pair undefined, the decoding is the
+Encoding Standard's: a byte 0x80 to 0x9F a single-byte code page leaves
+undefined is the C1 control of the same value, which the text conventions
+remove (`text.control_characters_removed`); any other byte or pair that
+makes no character, and a lead byte at the end of the text, are U+FFFD
+with a `text.unmapped_glyphs` warning that names the set. A character set
+that is not decoded (UTF-7, ...) is not guessed at: bytes outside ASCII
+become U+FFFD with the same warning (none when the text is all ASCII,
+since then nothing is lost). The tables' sources are in go-fast-core's
+NOTICE.
 
 In a `.msg`, 8-bit strings are read in `PR_MESSAGE_CODEPAGE`, else in
 `PR_INTERNET_CPID`. When that is UTF-8 and a string is not valid UTF-8,
@@ -594,6 +562,6 @@ told apart.
   `message/external-body` (passed on as embedded documents, never fetched).
 - Outlook named properties (`__nameid_version1.0`), multi-valued
   properties, and the CRC of compressed RTF.
-- Character sets other than those above, including KOI8.
+- Character sets other than those above (UTF-7, ...).
 - Byte offsets (`Loc`) for blocks: bodies are decoded before they become
   blocks, so offsets into the file would not be meaningful.

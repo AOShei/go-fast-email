@@ -387,7 +387,7 @@ func TestDispatcherNewTypes(t *testing.T) {
 // ErrEncodingUnknown; with -charset (Extractor.Charset) it is read in it.
 // A set the attachment declares is not overridden.
 func TestDispatcherCharset(t *testing.T) {
-	czech, err := os.ReadFile("../../internal/charset/testdata/detect/cs.cp1250")
+	czech, err := os.ReadFile("../../testdata/encoding/cs.cp1250")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,7 +9,8 @@ import (
 
 // TestControlsRemovedCounted: control characters with no meaning as text,
 // in a header value and the body, are removed and counted; line ends,
-// tabs and the folding of a header are not.
+// tabs, the folding of a header and the form feed (a page separator, a
+// line break in go-fast-core's clean) are not.
 func TestControlsRemovedCounted(t *testing.T) {
 	src := "From: A\x01n <a@example.com>\r\nSubject: Hel\x00lo\r\n there\r\nContent-Type: text/plain\r\n\r\nline\x1bone\r\n\tline two\x0c\r\n"
 	doc := extract(t, src, nil)
@@ -19,7 +20,7 @@ func TestControlsRemovedCounted(t *testing.T) {
 			got = append(got, w.Message)
 		}
 	}
-	want := "4 control characters with no meaning as text were removed from the message"
+	want := "3 control characters with no meaning as text were removed from the message"
 	if len(got) != 1 || got[0] != want {
 		t.Errorf("%q, want [%q]", got, want)
 	}
